@@ -5,7 +5,25 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module.js';
 
+function normalizeSupabaseRuntimePool() {
+  if (process.env.NODE_ENV !== 'production' || !process.env.DATABASE_URL) {
+    return;
+  }
+
+  const databaseUrl = new URL(process.env.DATABASE_URL);
+  if (
+    databaseUrl.hostname.endsWith('.pooler.supabase.com') &&
+    databaseUrl.port === '5432'
+  ) {
+    databaseUrl.port = '6543';
+    databaseUrl.searchParams.set('pgbouncer', 'true');
+    databaseUrl.searchParams.set('connection_limit', '3');
+    process.env.DATABASE_URL = databaseUrl.toString();
+  }
+}
+
 async function bootstrap() {
+  normalizeSupabaseRuntimePool();
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   app.use(json({ limit: '10mb' }));
   app.use(urlencoded({ extended: true, limit: '10mb' }));
