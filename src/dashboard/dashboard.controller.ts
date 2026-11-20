@@ -20,4 +20,14 @@ export class DashboardController {
   summary(@Req() req: AuthedRequest, @Query('gymSlug') gymSlug: string) {
     return this.dashboard.summary(req.user, gymSlug);
   }
+
+  @Get('member-home')
+  @Roles(Role.MEMBER)
+  memberHome(
+    @Req() req: AuthedRequest,
+    @Query('gymSlug') gymSlug: string,
+    @Query('dayId') dayId: string,
+  ) {
+    return this.dashboard.memberHome(req.user, gymSlug, dayId);
+  }
 }

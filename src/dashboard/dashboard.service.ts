@@ -1,11 +1,60 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Role, type AuthUserPayload } from '../auth/auth.types.js';
 import { gymRole } from '../auth/guards/roles.guard.js';
+import { AssignmentsService } from '../assignments/assignments.service.js';
+import { AttendanceService } from '../attendance/attendance.service.js';
+import { FitnessService } from '../fitness/fitness.service.js';
+import { MembersService } from '../members/members.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly assignments: AssignmentsService,
+    private readonly attendance: AttendanceService,
+    private readonly fitness: FitnessService,
+    private readonly members: MembersService,
+  ) {}
+
+  async memberHome(user: AuthUserPayload, gymSlug: string, dayId: string) {
+    const safe = async <T>(work: Promise<T>): Promise<T | null> =>
+      work.catch(() => null);
+
+    const [
+      assignment,
+      attendance,
+      pulse,
+      active,
+      profile,
+      workout,
+      diet,
+      dietDoneIds,
+      setLogs,
+    ] = await Promise.all([
+      safe(this.assignments.getMyAssignment(user)),
+      safe(this.attendance.myStats(user)),
+      safe(this.attendance.gymPulseForMember(user)),
+      safe(this.attendance.myActive(user)),
+      safe(this.members.getMyProfile(user, gymSlug.trim())),
+      safe(this.fitness.myWorkoutPlan(user)),
+      safe(this.fitness.myDietPlan(user)),
+      safe(this.fitness.listDietMealLogs(user)),
+      safe(this.fitness.listWorkoutSetLogs(user, dayId)),
+    ]);
+
+    return {
+      assignment,
+      attendance,
+      pulse,
+      active,
+      profile,
+      workout,
+      diet,
+      dietDoneIds,
+      setLogs,
+    };
+  }
 
   async summary(user: AuthUserPayload, gymSlug: string) {
     const admin = gymRole(user, Role.GYM_ADMIN, gymSlug);
@@ -15,50 +64,55 @@ export class DashboardService {
     });
     if (!tenant) throw new NotFoundException('Gym not found');
 
-    const memberCount = await this.prisma.userTenantRole.count({
-      where: { gymId: tenant.id, role: Role.MEMBER },
-    });
-    const trials = await this.prisma.trialLead.findMany({
-      where: { gymId: tenant.id },
-    });
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const [
+      memberCount,
+      trials,
+      attendanceToday,
+      paidMtd,
+      pending,
+      onFloor,
+      onLeave,
+      recentPayments,
+    ] = await Promise.all([
+      this.prisma.userTenantRole.count({
+        where: { gymId: tenant.id, role: Role.MEMBER },
+      }),
+      this.prisma.trialLead.findMany({ where: { gymId: tenant.id } }),
+      this.prisma.memberCheckIn.count({
+        where: { gymId: tenant.id, checkInAt: { gte: today } },
+      }),
+      this.prisma.gymPayment.aggregate({
+        where: {
+          gymId: tenant.id,
+          status: 'paid',
+          createdAt: { gte: monthStart },
+        },
+        _sum: { amountInr: true },
+      }),
+      this.prisma.gymPayment.aggregate({
+        where: { gymId: tenant.id, status: 'pending' },
+        _sum: { amountInr: true },
+      }),
+      this.prisma.trainerProfile.count({
+        where: { gymId: tenant.id, floorStatus: 'on-floor' },
+      }),
+      this.prisma.trainerProfile.count({
+        where: { gymId: tenant.id, floorStatus: 'leave' },
+      }),
+      this.prisma.gymPayment.findMany({
+        where: { gymId: tenant.id },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        include: { member: true },
+      }),
+    ]);
     const activeTrials = trials.filter((t) =>
       ['active', 'expiring'].includes(t.status),
     ).length;
     const expiringTrials = trials.filter((t) => t.status === 'expiring').length;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const attendanceToday = await this.prisma.memberCheckIn.count({
-      where: { gymId: tenant.id, checkInAt: { gte: today } },
-    });
-
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    const paidMtd = await this.prisma.gymPayment.aggregate({
-      where: {
-        gymId: tenant.id,
-        status: 'paid',
-        createdAt: { gte: monthStart },
-      },
-      _sum: { amountInr: true },
-    });
-    const pending = await this.prisma.gymPayment.aggregate({
-      where: { gymId: tenant.id, status: 'pending' },
-      _sum: { amountInr: true },
-    });
-
-    const onFloor = await this.prisma.trainerProfile.count({
-      where: { gymId: tenant.id, floorStatus: 'on-floor' },
-    });
-    const onLeave = await this.prisma.trainerProfile.count({
-      where: { gymId: tenant.id, floorStatus: 'leave' },
-    });
-
-    const recentPayments = await this.prisma.gymPayment.findMany({
-      where: { gymId: tenant.id },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-      include: { member: true },
-    });
 
     return {
       activeMembers: memberCount,
