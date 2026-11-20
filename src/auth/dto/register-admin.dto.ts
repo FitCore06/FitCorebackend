@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, Matches, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEmail, IsOptional, IsString, Matches, MinLength } from 'class-validator';
 
 export class RegisterAdminDto {
   @ApiProperty({ example: 'Arjun Patel' })
@@ -28,8 +28,12 @@ export class RegisterAdminDto {
   })
   gymSlug!: string;
 
-  @ApiProperty({ description: 'Single-use onboarding invite issued by FitCore' })
+  @ApiPropertyOptional({
+    description:
+      'Single-use owner invite from FitCore (required unless ALLOW_OWNER_REGISTRATION_WITHOUT_INVITE=true)',
+  })
+  @IsOptional()
   @IsString()
   @MinLength(16)
-  inviteToken!: string;
+  inviteToken?: string;
 }

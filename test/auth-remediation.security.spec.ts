@@ -1,4 +1,4 @@
-import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthService } from '../src/auth/auth.service.js';
 import { REGISTRATION_INVITE_KIND } from '../src/auth/registration-invite.service.js';
@@ -65,7 +65,23 @@ describe('Auth security remediation', () => {
     prisma.refreshToken.updateMany.mockResolvedValue({ count: 2 });
   });
 
+  it('rejects owner signup with no invite when invites are required', async () => {
+    config.get.mockReturnValue(undefined);
+    prisma.user.findUnique.mockResolvedValue(null);
+    await expect(
+      service.registerAdmin({
+        name: 'Owner A',
+        email: 'owner-a@example.test',
+        password: 'Password!123',
+        gymName: 'Gym A',
+        gymSlug: 'gym-a',
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(registrationInvites.consumeOwnerInvite).not.toHaveBeenCalled();
+  });
+
   it('requires an owner invite before admin registration', async () => {
+    config.get.mockReturnValue(undefined);
     registrationInvites.consumeOwnerInvite.mockRejectedValueOnce(
       new ForbiddenException('stop-after-invite-check'),
     );
@@ -86,6 +102,32 @@ describe('Auth security remediation', () => {
       'owner-a@example.test',
     );
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('skips owner invite when open registration is enabled', async () => {
+    config.get.mockImplementation((key: string) =>
+      key === 'ALLOW_OWNER_REGISTRATION_WITHOUT_INVITE' ? 'true' : undefined,
+    );
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.tenant.findUnique.mockResolvedValue(null);
+    registrationInvites.consumeOwnerInvite.mockResolvedValue(undefined);
+
+    let threw: unknown;
+    try {
+      await service.registerAdmin({
+        name: 'Owner A',
+        email: 'owner-open@example.test',
+        password: 'Password!123',
+        gymName: 'Gym A',
+        gymSlug: 'gym-open',
+      });
+    } catch (error) {
+      threw = error;
+    }
+
+    expect(registrationInvites.consumeOwnerInvite).not.toHaveBeenCalled();
+    expect(threw).not.toBeInstanceOf(BadRequestException);
+    expect(threw).not.toBeInstanceOf(ForbiddenException);
   });
 
   it('requires a member invite and does not trust gym slug alone', async () => {

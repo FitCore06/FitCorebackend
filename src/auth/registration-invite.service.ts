@@ -20,7 +20,8 @@ export type RegistrationInviteKind =
 
 const DEFAULT_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-const INVITE_INVALID_MESSAGE = 'Registration invite is invalid or expired';
+const INVITE_INVALID_MESSAGE =
+  'This owner invite code is invalid, already used, or expired. Use the code FitCore sent you — not your gym name or password.';
 
 @Injectable()
 export class RegistrationInviteService {

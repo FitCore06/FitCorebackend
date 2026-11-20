@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -46,13 +47,24 @@ export class AuthService {
     private readonly registrationInvites: RegistrationInviteService,
   ) {}
 
+  isOwnerInviteRequired() {
+    return this.config.get<string>('ALLOW_OWNER_REGISTRATION_WITHOUT_INVITE') !== 'true';
+  }
+
+  getSignupPolicy() {
+    return {
+      ownerInviteRequired: this.isOwnerInviteRequired(),
+      memberInviteRequired: true,
+    };
+  }
+
   async registerAdmin(dto: RegisterAdminDto) {
     if (isDevAuthStubEnabled()) {
       throw new ServiceUnavailableException(
         'Postgres is offline. Use test logins (DEV_AUTH_STUB) or start Docker and run db:migrate.',
       );
     }
-    await this.registrationInvites.consumeOwnerInvite(dto.inviteToken, dto.email);
+    await this.enforceOwnerInviteForRegistration(dto.inviteToken, dto.email);
     await this.assertEmailAvailable(dto.email);
     await this.assertSlugAvailable(dto.gymSlug);
 
@@ -453,6 +465,25 @@ export class AuthService {
 
   private hashToken(token: string) {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  private async enforceOwnerInviteForRegistration(
+    inviteToken: string | undefined,
+    email: string,
+  ) {
+    const trimmed = inviteToken?.trim() ?? '';
+    if (!this.isOwnerInviteRequired()) {
+      if (trimmed) {
+        await this.registrationInvites.consumeOwnerInvite(trimmed, email);
+      }
+      return;
+    }
+    if (!trimmed) {
+      throw new BadRequestException(
+        'Owner invite code is required. Use the code FitCore sent you, or ask support to enable open owner signup.',
+      );
+    }
+    await this.registrationInvites.consumeOwnerInvite(trimmed, email);
   }
 
   private async assertEmailAvailable(email: string) {

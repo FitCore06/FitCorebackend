@@ -26,6 +26,12 @@ const LOGIN_THROTTLE = { auth: { ttl: 60_000, limit: loginLimit } };
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Get('signup-policy')
+  @ApiOperation({ summary: 'Whether signup requires invite codes (public)' })
+  signupPolicy() {
+    return this.authService.getSignupPolicy();
+  }
+
   @Post('register/admin')
   @Throttle(AUTH_THROTTLE)
   @ApiOperation({ summary: 'Gym owner signup — creates gym + admin user' })
