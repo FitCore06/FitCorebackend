@@ -11,7 +11,7 @@
     "dev": "nest start --watch",
     "prestart:dev": "prisma generate && sh -c 'lsof -ti :3001 2>/dev/null | xargs kill -9 2>/dev/null || true'",
     "build": "nest build",
-    "build:render": "prisma generate && nest build",
+    "render:build": "bash scripts/render-build.sh",
     "deploy": "nest deploy",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
