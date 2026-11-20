@@ -78,21 +78,42 @@ export class RegistrationInviteService {
   async consumeMemberInvite(
     inviteToken: string,
     registrantEmail: string,
-    gymSlug: string,
+    gymSlug?: string,
   ): Promise<{ gymId: string }> {
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: gymSlug.toLowerCase() },
-    });
-    if (!tenant) {
-      throw new NotFoundException('Gym not found for this code');
+    const trimmedSlug = gymSlug?.trim().toLowerCase();
+    let expectedGymId: string | undefined;
+
+    if (trimmedSlug) {
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { slug: trimmedSlug },
+      });
+      if (!tenant) {
+        throw new NotFoundException('Gym not found for this code');
+      }
+      expectedGymId = tenant.id;
+    } else {
+      const tokenHash = this.hashToken(inviteToken.trim());
+      let invite: RegistrationInvite | null;
+      try {
+        invite = await this.prisma.registrationInvite.findUnique({
+          where: { tokenHash },
+        });
+      } catch (error) {
+        this.rethrowInviteStorageError(error);
+      }
+      if (!invite?.gymId) {
+        throw new ForbiddenException(INVITE_INVALID_MESSAGE);
+      }
+      expectedGymId = invite.gymId;
     }
+
     await this.consumeInvite(
       inviteToken,
       REGISTRATION_INVITE_KIND.GYM_MEMBER,
       registrantEmail,
-      tenant.id,
+      expectedGymId,
     );
-    return { gymId: tenant.id };
+    return { gymId: expectedGymId };
   }
 
   private async consumeInvite(

@@ -47,6 +47,23 @@ describe('RegistrationInviteService', () => {
     expect(prisma.registrationInvite.updateMany).not.toHaveBeenCalled();
   });
 
+  it('accepts member invite without gym slug when invite has gymId', async () => {
+    prisma.registrationInvite.findUnique.mockResolvedValue({
+      id: 'invite-m',
+      kind: REGISTRATION_INVITE_KIND.GYM_MEMBER,
+      gymId: 'gym-a',
+      usedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      email: null,
+    });
+    await service.consumeMemberInvite(
+      'member-token-1234567890',
+      'member@example.test',
+    );
+    expect(prisma.registrationInvite.updateMany).toHaveBeenCalled();
+    expect(prisma.tenant.findUnique).not.toHaveBeenCalled();
+  });
+
   it('maps missing registration_invites table to ServiceUnavailableException', async () => {
     prisma.registrationInvite.findUnique.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError('missing table', {

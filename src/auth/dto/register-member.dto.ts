@@ -16,17 +16,22 @@ export class RegisterMemberDto {
   @MinLength(8)
   password!: string;
 
-  @ApiProperty({ example: 'iron-forge' })
+  @ApiPropertyOptional({
+    example: 'iron-forge',
+    description:
+      'Optional — member invite already identifies the gym. Only needed for legacy clients.',
+  })
+  @IsOptional()
   @IsString()
   @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
-  gymSlug!: string;
+  gymSlug?: string;
 
   @ApiPropertyOptional({ example: '+919876543210' })
   @IsOptional()
   @IsString()
   phone?: string;
 
-  @ApiProperty({ description: 'Gym-issued registration invite token' })
+  @ApiProperty({ description: 'Invite code from your gym (WhatsApp / front desk)' })
   @IsString()
   @MinLength(16)
   inviteToken!: string;
