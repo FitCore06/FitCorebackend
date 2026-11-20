@@ -53,7 +53,7 @@ describe('Stage 14: Multi-Branch Management & Authorization Policy', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new GymOpsService(prisma as never);
+    service = new GymOpsService(prisma as never, { get: vi.fn() } as never);
     prisma.tenant.findUnique.mockImplementation(async ({ where }: { where: { slug: string } }) => {
       if (where.slug === 'gym-a') return { id: 'gym-a', slug: 'gym-a', name: 'Gym A' };
       if (where.slug === 'gym-b') return { id: 'gym-b', slug: 'gym-b', name: 'Gym B' };

@@ -25,7 +25,7 @@ describe('Membership lifecycle tenant safety', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new GymOpsService(prisma as never);
+    service = new GymOpsService(prisma as never, { get: vi.fn() } as never);
     prisma.tenant.findUnique.mockResolvedValue({ id: 'gym-a', slug: 'gym-a' });
     prisma.userTenantRole.findFirst.mockResolvedValue({ userId: 'member-a' });
     prisma.gymMembershipPlan.findFirst.mockResolvedValue({

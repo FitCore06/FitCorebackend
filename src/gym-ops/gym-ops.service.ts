@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Role, type AuthUserPayload } from '../auth/auth.types.js';
 import { gymRole } from '../auth/guards/roles.guard.js';
 import { validateBase64Image } from '../common/image-upload.js';
@@ -29,7 +30,10 @@ import type { AssignMembershipDto, RenewMembershipDto } from './dto/assign-membe
 
 @Injectable()
 export class GymOpsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
 
   private async tenantForAdmin(user: AuthUserPayload, gymSlug: string) {
     const admin = gymRole(user, Role.GYM_ADMIN, gymSlug);
@@ -1643,21 +1647,56 @@ export class GymOpsService {
 
   async settings(user: AuthUserPayload, gymSlug: string) {
     const tenant = await this.tenantForAdmin(user, gymSlug);
+    const gymId = tenant.id;
+
+    const [branches, roleCounts, owners, activeMemberships, membershipPlans] =
+      await Promise.all([
+        this.prisma.branch.findMany({
+          where: { gymId },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, name: true, status: true },
+        }),
+        this.prisma.userTenantRole.groupBy({
+          by: ['role'],
+          where: { gymId },
+          _count: { userId: true },
+        }),
+        this.prisma.userTenantRole.findMany({
+          where: { gymId, role: Role.GYM_ADMIN },
+          include: {
+            user: { select: { name: true, email: true, phone: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        }),
+        this.prisma.memberMembership.count({
+          where: { gymId, status: { in: ['active', 'trial'] } },
+        }),
+        this.prisma.gymMembershipPlan.count({ where: { gymId } }),
+      ]);
+
+    const appPublicUrl = (
+      this.config.get<string>('APP_PUBLIC_URL') ?? 'https://fit-core-mocha.vercel.app'
+    ).replace(/\/$/, '');
+
     return {
       gymName: tenant.name,
       slug: tenant.slug,
-      timezone: 'Asia/Kolkata',
-      branding: { primaryColor: 'Teal #0d9488', logo: 'demo-logo.png' },
-      integrations: {
-        payments: 'Razorpay (test)',
-        whatsapp: 'Pending provider',
-        push: 'FCM configured',
-      },
-      permissions: [
-        { role: 'GYM_ADMIN', access: 'Full branch access' },
-        { role: 'STAFF', access: 'Members, attendance, POS' },
-        { role: 'TRAINER', access: 'Assigned members only' },
-      ],
+      status: tenant.status,
+      createdAt: tenant.createdAt.toISOString(),
+      branches,
+      teamCounts: roleCounts.map((row) => ({
+        role: row.role,
+        count: row._count.userId,
+      })),
+      owners: owners.map((row) => ({
+        name: row.user.name,
+        email: row.user.email,
+        phone: row.user.phone,
+      })),
+      activeMemberships,
+      membershipPlans,
+      memberSignupUrl: `${appPublicUrl}/signup`,
+      adminWebUrl: appPublicUrl,
     };
   }
 }
