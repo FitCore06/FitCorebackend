@@ -11,8 +11,12 @@ fi
 npx prisma generate
 npm exec nest build
 
-# Migrations only on Render (or when explicitly requested) — local build stays offline-safe.
+# Migrations only on Render — use DIRECT_DATABASE_URL when set (pooler user breaks migrate).
 if [ -n "${DATABASE_URL:-}" ] && { [ -n "${RENDER:-}" ] || [ -n "${RENDER_SERVICE_ID:-}" ] || [ "${RUN_DB_MIGRATE:-}" = "1" ]; }; then
   echo "Applying Prisma migrations..."
-  npx prisma migrate deploy
+  if [ -n "${DIRECT_DATABASE_URL:-}" ]; then
+  DATABASE_URL="$DIRECT_DATABASE_URL" npx prisma migrate deploy
+  else
+    npx prisma migrate deploy
+  fi
 fi
