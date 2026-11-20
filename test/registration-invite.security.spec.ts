@@ -23,6 +23,16 @@ describe('RegistrationInviteService', () => {
     prisma.registrationInvite.updateMany.mockResolvedValue({ count: 1 });
   });
 
+  it('accepts owner gym slug as the member invite code', async () => {
+    prisma.tenant.findUnique.mockResolvedValue({ id: 'gym-a', slug: 'gold-gym-06' });
+    const result = await service.consumeMemberInvite(
+      'gold-gym-06',
+      'member@example.test',
+    );
+    expect(result).toEqual({ gymId: 'gym-a' });
+    expect(prisma.registrationInvite.findUnique).not.toHaveBeenCalled();
+  });
+
   it('rejects member signup when invite gym does not match slug', async () => {
     prisma.tenant.findUnique.mockResolvedValue({ id: 'gym-b', slug: 'gym-b' });
     prisma.registrationInvite.findUnique.mockResolvedValue({
@@ -34,7 +44,7 @@ describe('RegistrationInviteService', () => {
       email: null,
     });
     await expect(
-      service.consumeMemberInvite('member-token-1234567890', 'member@example.test', 'gym-b'),
+      service.consumeMemberInvite('MemberTok_en-1234567890', 'member@example.test', 'gym-b'),
     ).rejects.toThrow(ForbiddenException);
     expect(prisma.registrationInvite.updateMany).not.toHaveBeenCalled();
   });
@@ -57,7 +67,7 @@ describe('RegistrationInviteService', () => {
       email: null,
     });
     await service.consumeMemberInvite(
-      'member-token-1234567890',
+      'MemberTok_en-1234567890',
       'member@example.test',
     );
     expect(prisma.registrationInvite.updateMany).toHaveBeenCalled();

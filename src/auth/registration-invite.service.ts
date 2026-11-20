@@ -20,6 +20,8 @@ export type RegistrationInviteKind =
 
 const DEFAULT_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+const GYM_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 const OWNER_INVITE_INVALID_MESSAGE =
   'This owner invite code is invalid, already used, or expired. Use the code FitCore sent you — not your gym name or password.';
 
@@ -83,6 +85,35 @@ export class RegistrationInviteService {
     registrantEmail: string,
     gymSlug?: string,
   ): Promise<{ gymId: string }> {
+    const trimmed = inviteToken?.trim() ?? '';
+    if (!trimmed) {
+      throw new ForbiddenException('Gym invite code is required');
+    }
+
+    const slugFromInvite = trimmed.toLowerCase();
+    const optionalBodySlug = gymSlug?.trim().toLowerCase();
+    const inviteIsGymSlug =
+      trimmed === trimmed.toLowerCase() &&
+      trimmed.length <= 64 &&
+      GYM_SLUG_PATTERN.test(slugFromInvite);
+
+    if (inviteIsGymSlug) {
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { slug: slugFromInvite },
+      });
+      if (tenant) {
+        if (optionalBodySlug && optionalBodySlug !== slugFromInvite) {
+          throw new BadRequestException(
+            'Gym invite code does not match the gym id in the request.',
+          );
+        }
+        return { gymId: tenant.id };
+      }
+      throw new NotFoundException(
+        'No gym found for this invite code. Ask the owner for the exact gym code from Settings (Gym URL id).',
+      );
+    }
+
     const trimmedSlug = gymSlug?.trim().toLowerCase();
     let expectedGymId: string | undefined;
 
@@ -141,21 +172,6 @@ export class RegistrationInviteService {
       });
     } catch (error) {
       this.rethrowInviteStorageError(error);
-    }
-
-    if (
-      !invite &&
-      kind === REGISTRATION_INVITE_KIND.GYM_MEMBER &&
-      /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(trimmed.toLowerCase())
-    ) {
-      const slugTenant = await this.prisma.tenant.findUnique({
-        where: { slug: trimmed.toLowerCase() },
-      });
-      if (slugTenant) {
-        throw new BadRequestException(
-          'That value is your gym URL code, not a member invite. On signup use the one-time code from Admin → Members → Generate invite — or ask the owner to send it.',
-        );
-      }
     }
 
     this.assertInviteUsable(invite, kind, email, expectedGymId, now);

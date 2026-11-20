@@ -51,16 +51,11 @@ export class AuthService {
     return this.config.get<string>('ALLOW_OWNER_REGISTRATION_WITHOUT_INVITE') !== 'true';
   }
 
-  isMemberInviteRequired() {
-    return (
-      this.config.get<string>('ALLOW_MEMBER_REGISTRATION_WITHOUT_INVITE') !== 'true'
-    );
-  }
-
   getSignupPolicy() {
     return {
       ownerInviteRequired: this.isOwnerInviteRequired(),
-      memberInviteRequired: this.isMemberInviteRequired(),
+      /** Gym invite code required (same value as owner gym URL id / slug). */
+      memberInviteRequired: true,
     };
   }
 
@@ -159,34 +154,9 @@ export class AuthService {
     dto: RegisterMemberDto,
   ): Promise<string> {
     const inviteTrimmed = dto.inviteToken?.trim() ?? '';
-    if (!this.isMemberInviteRequired()) {
-      const slug = dto.gymSlug?.trim().toLowerCase();
-      if (!slug) {
-        throw new BadRequestException(
-          'Gym code is required. Ask your gym for the URL code (e.g. gold-fit), not your password.',
-        );
-      }
-      if (inviteTrimmed) {
-        const { gymId } = await this.registrationInvites.consumeMemberInvite(
-          inviteTrimmed,
-          dto.email,
-          slug,
-        );
-        return gymId;
-      }
-      const tenant = await this.prisma.tenant.findUnique({
-        where: { slug },
-      });
-      if (!tenant) {
-        throw new NotFoundException(
-          'No gym found for this code. Double-check with your gym — the signup URL code is not the same as an invite token.',
-        );
-      }
-      return tenant.id;
-    }
     if (!inviteTrimmed) {
       throw new BadRequestException(
-        'Member invite code is required. Ask your gym to generate one from Admin → Members.',
+        'Gym invite code is required — the same code the owner chose at signup (Settings → Gym URL id).',
       );
     }
     const { gymId } = await this.registrationInvites.consumeMemberInvite(

@@ -130,49 +130,30 @@ describe('Auth security remediation', () => {
     expect(threw).not.toBeInstanceOf(ForbiddenException);
   });
 
-  it('skips member invite when open registration is enabled', async () => {
-    config.get.mockImplementation((key: string) =>
-      key === 'ALLOW_MEMBER_REGISTRATION_WITHOUT_INVITE' ? 'true' : undefined,
-    );
+  it('passes gym slug as member invite code to registration service', async () => {
+    config.get.mockReturnValue(undefined);
+    registrationInvites.consumeMemberInvite.mockResolvedValueOnce({ gymId: 'gym-a' });
     prisma.user.findUnique.mockResolvedValue(null);
-    prisma.tenant.findUnique.mockResolvedValue({ id: 'gym-1', slug: 'gold-fit' });
+    prisma.tenant.findUnique.mockResolvedValue({
+      id: 'gym-a',
+      slug: 'gold-gym-06',
+    });
 
-    let threw: unknown;
-    try {
-      await service.registerMember({
-        name: 'Member Open',
-        email: 'member-open@example.test',
-        password: 'Password!123',
-        gymSlug: 'gold-fit',
-      });
-    } catch (error) {
-      threw = error;
-    }
-
-    expect(registrationInvites.consumeMemberInvite).not.toHaveBeenCalled();
-    expect(threw).not.toBeInstanceOf(ForbiddenException);
-  });
-
-  it('requires a member invite and does not trust gym slug alone', async () => {
-    registrationInvites.consumeMemberInvite.mockRejectedValueOnce(
-      new ForbiddenException(),
-    );
-    prisma.user.findUnique.mockResolvedValue(null);
     await expect(
       service.registerMember({
         name: 'Member A',
         email: 'member-a@example.test',
         password: 'Password!123',
-        gymSlug: 'other-gym',
-        inviteToken: 'invalid-token-1234567890',
+        inviteToken: 'gold-gym-06',
       }),
-    ).rejects.toThrow(ForbiddenException);
+    ).rejects.toBeTruthy();
+
     expect(registrationInvites.consumeMemberInvite).toHaveBeenCalledWith(
-      'invalid-token-1234567890',
+      'gold-gym-06',
       'member-a@example.test',
-      'other-gym',
+      undefined,
     );
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalled();
   });
 
   it('revokes refresh tokens after a password change', async () => {

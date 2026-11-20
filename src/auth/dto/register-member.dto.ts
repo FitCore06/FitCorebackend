@@ -31,12 +31,11 @@ export class RegisterMemberDto {
   @IsString()
   phone?: string;
 
-  @ApiPropertyOptional({
-    description:
-      'Invite code from your gym (required unless ALLOW_MEMBER_REGISTRATION_WITHOUT_INVITE=true)',
+  @ApiProperty({
+    example: 'gold-gym-06',
+    description: 'Gym invite code — same as the owner gym URL id (slug)',
   })
-  @IsOptional()
   @IsString()
-  @MinLength(16)
-  inviteToken?: string;
+  @MinLength(3)
+  inviteToken!: string;
 }
