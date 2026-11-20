@@ -1,4 +1,5 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   REGISTRATION_INVITE_KIND,
@@ -7,10 +8,10 @@ import {
 
 describe('RegistrationInviteService', () => {
   const prisma = {
-    $transaction: vi.fn(),
     registrationInvite: {
       findUnique: vi.fn(),
       create: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     tenant: { findUnique: vi.fn() },
   };
@@ -19,8 +20,7 @@ describe('RegistrationInviteService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     service = new RegistrationInviteService(prisma as never);
-    prisma.$transaction.mockImplementation(async (callback) => callback(prisma));
-    prisma.registrationInvite.updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    prisma.registrationInvite.updateMany.mockResolvedValue({ count: 1 });
   });
 
   it('rejects member signup when invite gym does not match slug', async () => {
@@ -36,5 +36,26 @@ describe('RegistrationInviteService', () => {
     await expect(
       service.consumeMemberInvite('member-token-1234567890', 'member@example.test', 'gym-b'),
     ).rejects.toThrow(ForbiddenException);
+    expect(prisma.registrationInvite.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects unknown owner invite with ForbiddenException (not transaction)', async () => {
+    prisma.registrationInvite.findUnique.mockResolvedValue(null);
+    await expect(
+      service.consumeOwnerInvite('unknown-owner-token-12', 'owner@example.test'),
+    ).rejects.toThrow(ForbiddenException);
+    expect(prisma.registrationInvite.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('maps missing registration_invites table to ServiceUnavailableException', async () => {
+    prisma.registrationInvite.findUnique.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('missing table', {
+        code: 'P2021',
+        clientVersion: 'test',
+      }),
+    );
+    await expect(
+      service.consumeOwnerInvite('unknown-owner-token-12', 'owner@example.test'),
+    ).rejects.toThrow(ServiceUnavailableException);
   });
 });

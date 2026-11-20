@@ -3,9 +3,12 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
+import type { RegistrationInvite } from '@prisma/client';
 
 export const REGISTRATION_INVITE_KIND = {
   GYM_OWNER: 'gym_owner',
@@ -16,6 +19,8 @@ export type RegistrationInviteKind =
   (typeof REGISTRATION_INVITE_KIND)[keyof typeof REGISTRATION_INVITE_KIND];
 
 const DEFAULT_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+const INVITE_INVALID_MESSAGE = 'Registration invite is invalid or expired';
 
 @Injectable()
 export class RegistrationInviteService {
@@ -43,15 +48,19 @@ export class RegistrationInviteService {
     const expiresAt = new Date(Date.now() + (input.ttlMs ?? DEFAULT_INVITE_TTL_MS));
     const email = input.email?.trim().toLowerCase() || null;
 
-    await this.prisma.registrationInvite.create({
-      data: {
-        kind: input.kind,
-        tokenHash,
-        gymId: input.gymId ?? null,
-        email,
-        expiresAt,
-      },
-    });
+    try {
+      await this.prisma.registrationInvite.create({
+        data: {
+          kind: input.kind,
+          tokenHash,
+          gymId: input.gymId ?? null,
+          email,
+          expiresAt,
+        },
+      });
+    } catch (error) {
+      this.rethrowInviteStorageError(error);
+    }
 
     return { inviteToken: token, expiresAt };
   }
@@ -100,35 +109,68 @@ export class RegistrationInviteService {
     const email = registrantEmail.trim().toLowerCase();
     const now = new Date();
 
-    await this.prisma.$transaction(async (tx) => {
-      const invite = await tx.registrationInvite.findUnique({
+    let invite: RegistrationInvite | null;
+    try {
+      invite = await this.prisma.registrationInvite.findUnique({
         where: { tokenHash },
       });
-      if (!invite || invite.kind !== kind) {
-        throw new ForbiddenException('Registration invite is invalid or expired');
-      }
-      if (invite.usedAt) {
-        throw new ForbiddenException('Registration invite is invalid or expired');
-      }
-      if (invite.expiresAt < now) {
-        throw new ForbiddenException('Registration invite is invalid or expired');
-      }
-      if (invite.email && invite.email !== email) {
-        throw new ForbiddenException('Registration invite is invalid or expired');
-      }
-      if (kind === REGISTRATION_INVITE_KIND.GYM_MEMBER) {
-        if (!invite.gymId || invite.gymId !== expectedGymId) {
-          throw new ForbiddenException('Registration invite is not valid for this gym');
-        }
-      }
+    } catch (error) {
+      this.rethrowInviteStorageError(error);
+    }
 
-      const updated = await tx.registrationInvite.updateMany({
-        where: { id: invite.id, usedAt: null },
+    this.assertInviteUsable(invite, kind, email, expectedGymId, now);
+
+    try {
+      const updated = await this.prisma.registrationInvite.updateMany({
+        where: { id: invite!.id, usedAt: null },
         data: { usedAt: now },
       });
       if (updated.count !== 1) {
-        throw new ForbiddenException('Registration invite is invalid or expired');
+        throw new ForbiddenException(INVITE_INVALID_MESSAGE);
       }
-    });
+    } catch (error) {
+      if (error instanceof ForbiddenException) {
+        throw error;
+      }
+      this.rethrowInviteStorageError(error);
+    }
+  }
+
+  private assertInviteUsable(
+    invite: RegistrationInvite | null,
+    kind: RegistrationInviteKind,
+    email: string,
+    expectedGymId: string | null,
+    now: Date,
+  ) {
+    if (!invite || invite.kind !== kind) {
+      throw new ForbiddenException(INVITE_INVALID_MESSAGE);
+    }
+    if (invite.usedAt) {
+      throw new ForbiddenException(INVITE_INVALID_MESSAGE);
+    }
+    if (invite.expiresAt < now) {
+      throw new ForbiddenException(INVITE_INVALID_MESSAGE);
+    }
+    if (invite.email && invite.email !== email) {
+      throw new ForbiddenException(INVITE_INVALID_MESSAGE);
+    }
+    if (kind === REGISTRATION_INVITE_KIND.GYM_MEMBER) {
+      if (!invite.gymId || invite.gymId !== expectedGymId) {
+        throw new ForbiddenException('Registration invite is not valid for this gym');
+      }
+    }
+  }
+
+  private rethrowInviteStorageError(error: unknown): never {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2021' || error.code === 'P2022')
+    ) {
+      throw new ServiceUnavailableException(
+        'Registration invites are not configured. Apply database migration registration_invites.',
+      );
+    }
+    throw error;
   }
 }
