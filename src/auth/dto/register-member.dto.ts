@@ -31,8 +31,12 @@ export class RegisterMemberDto {
   @IsString()
   phone?: string;
 
-  @ApiProperty({ description: 'Invite code from your gym (WhatsApp / front desk)' })
+  @ApiPropertyOptional({
+    description:
+      'Invite code from your gym (required unless ALLOW_MEMBER_REGISTRATION_WITHOUT_INVITE=true)',
+  })
+  @IsOptional()
   @IsString()
   @MinLength(16)
-  inviteToken!: string;
+  inviteToken?: string;
 }

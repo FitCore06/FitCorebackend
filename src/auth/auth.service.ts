@@ -51,10 +51,16 @@ export class AuthService {
     return this.config.get<string>('ALLOW_OWNER_REGISTRATION_WITHOUT_INVITE') !== 'true';
   }
 
+  isMemberInviteRequired() {
+    return (
+      this.config.get<string>('ALLOW_MEMBER_REGISTRATION_WITHOUT_INVITE') !== 'true'
+    );
+  }
+
   getSignupPolicy() {
     return {
       ownerInviteRequired: this.isOwnerInviteRequired(),
-      memberInviteRequired: true,
+      memberInviteRequired: this.isMemberInviteRequired(),
     };
   }
 
@@ -113,11 +119,7 @@ export class AuthService {
         'Postgres is offline. Use test logins or start Docker and run db:seed.',
       );
     }
-    const { gymId } = await this.registrationInvites.consumeMemberInvite(
-      dto.inviteToken,
-      dto.email,
-      dto.gymSlug,
-    );
+    const gymId = await this.resolveMemberRegistrationGymId(dto);
     await this.assertEmailAvailable(dto.email);
 
     const tenant = await this.prisma.tenant.findUnique({
@@ -151,6 +153,48 @@ export class AuthService {
     });
 
     return this.issueSession(user.id);
+  }
+
+  private async resolveMemberRegistrationGymId(
+    dto: RegisterMemberDto,
+  ): Promise<string> {
+    const inviteTrimmed = dto.inviteToken?.trim() ?? '';
+    if (!this.isMemberInviteRequired()) {
+      const slug = dto.gymSlug?.trim().toLowerCase();
+      if (!slug) {
+        throw new BadRequestException(
+          'Gym code is required. Ask your gym for the URL code (e.g. gold-fit), not your password.',
+        );
+      }
+      if (inviteTrimmed) {
+        const { gymId } = await this.registrationInvites.consumeMemberInvite(
+          inviteTrimmed,
+          dto.email,
+          slug,
+        );
+        return gymId;
+      }
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { slug },
+      });
+      if (!tenant) {
+        throw new NotFoundException(
+          'No gym found for this code. Double-check with your gym — the signup URL code is not the same as an invite token.',
+        );
+      }
+      return tenant.id;
+    }
+    if (!inviteTrimmed) {
+      throw new BadRequestException(
+        'Member invite code is required. Ask your gym to generate one from Admin → Members.',
+      );
+    }
+    const { gymId } = await this.registrationInvites.consumeMemberInvite(
+      inviteTrimmed,
+      dto.email,
+      dto.gymSlug,
+    );
+    return gymId;
   }
 
   async login(dto: LoginDto) {

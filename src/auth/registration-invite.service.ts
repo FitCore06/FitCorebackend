@@ -143,6 +143,21 @@ export class RegistrationInviteService {
       this.rethrowInviteStorageError(error);
     }
 
+    if (
+      !invite &&
+      kind === REGISTRATION_INVITE_KIND.GYM_MEMBER &&
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(trimmed.toLowerCase())
+    ) {
+      const slugTenant = await this.prisma.tenant.findUnique({
+        where: { slug: trimmed.toLowerCase() },
+      });
+      if (slugTenant) {
+        throw new BadRequestException(
+          'That value is your gym URL code, not a member invite. On signup use the one-time code from Admin → Members → Generate invite — or ask the owner to send it.',
+        );
+      }
+    }
+
     this.assertInviteUsable(invite, kind, email, expectedGymId, now);
 
     try {

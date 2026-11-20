@@ -130,6 +130,29 @@ describe('Auth security remediation', () => {
     expect(threw).not.toBeInstanceOf(ForbiddenException);
   });
 
+  it('skips member invite when open registration is enabled', async () => {
+    config.get.mockImplementation((key: string) =>
+      key === 'ALLOW_MEMBER_REGISTRATION_WITHOUT_INVITE' ? 'true' : undefined,
+    );
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.tenant.findUnique.mockResolvedValue({ id: 'gym-1', slug: 'gold-fit' });
+
+    let threw: unknown;
+    try {
+      await service.registerMember({
+        name: 'Member Open',
+        email: 'member-open@example.test',
+        password: 'Password!123',
+        gymSlug: 'gold-fit',
+      });
+    } catch (error) {
+      threw = error;
+    }
+
+    expect(registrationInvites.consumeMemberInvite).not.toHaveBeenCalled();
+    expect(threw).not.toBeInstanceOf(ForbiddenException);
+  });
+
   it('requires a member invite and does not trust gym slug alone', async () => {
     registrationInvites.consumeMemberInvite.mockRejectedValueOnce(
       new ForbiddenException(),
