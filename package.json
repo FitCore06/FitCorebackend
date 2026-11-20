@@ -11,6 +11,7 @@
     "dev": "nest start --watch",
     "prestart:dev": "prisma generate && sh -c 'lsof -ti :3001 2>/dev/null | xargs kill -9 2>/dev/null || true'",
     "build": "nest build",
+    "build:render": "prisma generate && nest build",
     "deploy": "nest deploy",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
@@ -25,6 +26,8 @@
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:supabase:setup": "prisma generate && prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:qa": "tsx prisma/qa-populate.ts"

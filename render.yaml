@@ -1,0 +1,23 @@
+# Render Blueprint — FitCore API (NestJS + Prisma → Supabase Postgres)
+services:
+  - type: web
+    name: fitcore-api
+    runtime: node
+    repo: https://github.com/FitCore06/FitCorebackend
+    branch: main
+    plan: free
+    region: singapore
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build && npx prisma migrate deploy
+    startCommand: npm run start:prod
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DEV_AUTH_STUB
+        value: false
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false
