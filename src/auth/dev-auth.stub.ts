@@ -36,6 +36,7 @@ const users: Record<
 };
 
 const refreshStore = new Map<string, string>();
+const passwordResetStore = new Map<string, { email: string; expiresAt: number }>();
 
 export function isDevAuthStubEnabled(): boolean {
   return process.env.DEV_AUTH_STUB === 'true';
@@ -117,4 +118,47 @@ export function devAuthResolveSub(sub: string): AuthUserPayload | null {
 
 function hash(token: string) {
   return createHash('sha256').update(token).digest('hex');
+}
+
+const RESET_TTL_MS = 60 * 60 * 1000;
+
+export function devAuthForgotPassword(email: string): {
+  issued: boolean;
+  token?: string;
+} {
+  const key = email.toLowerCase();
+  if (!users[key]) {
+    return { issued: false };
+  }
+  const token = randomBytes(32).toString('base64url');
+  passwordResetStore.set(hash(token), {
+    email: key,
+    expiresAt: Date.now() + RESET_TTL_MS,
+  });
+  return { issued: true, token };
+}
+
+export function devAuthResetPassword(token: string, password: string): boolean {
+  const record = passwordResetStore.get(hash(token));
+  if (!record || record.expiresAt < Date.now()) {
+    return false;
+  }
+  if (!users[record.email]) return false;
+  users[record.email]!.password = password;
+  passwordResetStore.delete(hash(token));
+  return true;
+}
+
+export function devAuthChangePassword(
+  email: string,
+  currentPassword: string,
+  newPassword: string,
+): boolean {
+  const key = email.toLowerCase();
+  const account = users[key];
+  if (!account || account.password !== currentPassword) {
+    return false;
+  }
+  account.password = newPassword;
+  return true;
 }

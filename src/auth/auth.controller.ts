@@ -3,8 +3,11 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { AuthService } from './auth.service.js';
 import type { AuthUserPayload } from './auth.types.js';
+import { ChangePasswordDto } from './dto/change-password.dto.js';
+import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RefreshTokenDto } from './dto/refresh-token.dto.js';
+import { ResetPasswordDto } from './dto/reset-password.dto.js';
 import { RegisterAdminDto } from './dto/register-admin.dto.js';
 import { RegisterMemberDto } from './dto/register-member.dto.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
@@ -52,5 +55,25 @@ export class AuthController {
   @ApiOperation({ summary: 'Current user profile' })
   me(@Req() req: AuthedRequest) {
     return req.user;
+  }
+
+  @Post('forgot-password')
+  @ApiOperation({ summary: 'Request a password reset email' })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.requestPasswordReset(dto);
+  }
+
+  @Post('reset-password')
+  @ApiOperation({ summary: 'Set a new password using reset token' })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPasswordWithToken(dto);
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Change password while signed in' })
+  changePassword(@Req() req: AuthedRequest, @Body() dto: ChangePasswordDto) {
+    return this.authService.changePassword(req.user.id, dto);
   }
 }
