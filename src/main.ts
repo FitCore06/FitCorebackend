@@ -17,7 +17,8 @@ function normalizeSupabaseRuntimePool() {
   ) {
     databaseUrl.port = '6543';
     databaseUrl.searchParams.set('pgbouncer', 'true');
-    databaseUrl.searchParams.set('connection_limit', '3');
+    databaseUrl.searchParams.set('connection_limit', '10');
+    databaseUrl.searchParams.set('pool_timeout', '30');
     process.env.DATABASE_URL = databaseUrl.toString();
   }
 }
@@ -25,6 +26,7 @@ function normalizeSupabaseRuntimePool() {
 async function bootstrap() {
   normalizeSupabaseRuntimePool();
   const app = await NestFactory.create(AppModule, { bodyParser: false });
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
   app.use(json({ limit: '10mb' }));
   app.use(urlencoded({ extended: true, limit: '10mb' }));
   const config = app.get(ConfigService);

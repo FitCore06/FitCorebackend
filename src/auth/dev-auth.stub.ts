@@ -160,5 +160,10 @@ export function devAuthChangePassword(
     return false;
   }
   account.password = newPassword;
+  for (const [tokenHash, storedEmail] of refreshStore.entries()) {
+    if (storedEmail === key) {
+      refreshStore.delete(tokenHash);
+    }
+  }
   return true;
 }

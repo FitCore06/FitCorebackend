@@ -27,4 +27,9 @@ export class RegisterAdminDto {
     message: 'gymSlug must be lowercase letters, numbers, and hyphens only',
   })
   gymSlug!: string;
+
+  @ApiProperty({ description: 'Single-use onboarding invite issued by FitCore' })
+  @IsString()
+  @MinLength(16)
+  inviteToken!: string;
 }

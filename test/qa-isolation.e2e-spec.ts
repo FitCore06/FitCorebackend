@@ -4,8 +4,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
+import { REGISTRATION_INVITE_KIND } from '../src/auth/registration-invite.service.js';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { createRegistrationInvite } from './registration-invite.helpers.js';
 
 const databaseName = (() => {
   try {
@@ -45,6 +47,9 @@ type Session = { accessToken: string; refreshToken: string; user: { id: string }
 
   async function registerOwner(label: string): Promise<Session> {
     const slug = `qa-${label}-${suffix}`;
+    const inviteToken = await createRegistrationInvite(prisma, {
+      kind: REGISTRATION_INVITE_KIND.GYM_OWNER,
+    });
     const response = await request(app.getHttpServer())
       .post('/api/v1/auth/register/admin')
       .send({
@@ -53,12 +58,18 @@ type Session = { accessToken: string; refreshToken: string; user: { id: string }
         password,
         gymName: `QA Gym ${label}`,
         gymSlug: slug,
+        inviteToken,
       })
       .expect(201);
     return response.body as Session;
   }
 
   async function registerMember(label: string, gymSlug: string): Promise<Session> {
+    const tenant = await prisma.tenant.findUniqueOrThrow({ where: { slug: gymSlug } });
+    const inviteToken = await createRegistrationInvite(prisma, {
+      kind: REGISTRATION_INVITE_KIND.GYM_MEMBER,
+      gymId: tenant.id,
+    });
     const response = await request(app.getHttpServer())
       .post('/api/v1/auth/register/member')
       .send({
@@ -67,6 +78,7 @@ type Session = { accessToken: string; refreshToken: string; user: { id: string }
         password,
         gymSlug,
         phone: '+919900000000',
+        inviteToken,
       })
       .expect(201);
     return response.body as Session;
@@ -154,7 +166,24 @@ type Session = { accessToken: string; refreshToken: string; user: { id: string }
       .expect(400);
   });
 
+  it('AUTH-001b rejects owner registration without a valid invite', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/register/admin')
+      .send({
+        name: 'No Invite Owner',
+        email: `no-invite-owner-${suffix}@example.test`,
+        password,
+        gymName: 'No Invite Gym',
+        gymSlug: `no-invite-${suffix}`,
+        inviteToken: 'not-a-real-invite-token',
+      })
+      .expect(403);
+  });
+
   it('AUTH-002 rejects duplicate owner registration', async () => {
+    const inviteToken = await createRegistrationInvite(prisma, {
+      kind: REGISTRATION_INVITE_KIND.GYM_OWNER,
+    });
     await request(app.getHttpServer())
       .post('/api/v1/auth/register/admin')
       .send({
@@ -163,6 +192,7 @@ type Session = { accessToken: string; refreshToken: string; user: { id: string }
         password,
         gymName: 'Duplicate Gym',
         gymSlug: `duplicate-${suffix}`,
+        inviteToken,
       })
       .expect(409);
   });

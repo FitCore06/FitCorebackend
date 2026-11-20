@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AssignmentsModule } from './assignments/assignments.module.js';
 import { AttendanceModule } from './attendance/attendance.module.js';
 import { BookingsModule } from './bookings/bookings.module.js';
@@ -24,6 +25,9 @@ import { PrismaModule } from './prisma/prisma.module.js';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env'],
+    }),
+    ThrottlerModule.forRoot({
+      throttlers: [{ name: 'auth', ttl: 60_000, limit: 100 }],
     }),
     PrismaModule,
     AuthModule,

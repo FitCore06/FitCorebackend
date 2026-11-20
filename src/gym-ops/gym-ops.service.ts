@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Role, type AuthUserPayload } from '../auth/auth.types.js';
 import { gymRole } from '../auth/guards/roles.guard.js';
+import { validateBase64Image } from '../common/image-upload.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { textReportToPdf } from './report-pdf.js';
 import {
@@ -978,15 +979,14 @@ export class GymOpsService {
     let proofData: string | undefined;
     let proofMimeType: string | undefined;
     if (dto.proofBase64) {
-      if (!dto.proofMimeType?.startsWith('image/')) {
-        throw new BadRequestException('Proof must be an image (screenshot or photo)');
-      }
-      const buf = Buffer.from(dto.proofBase64, 'base64');
-      if (buf.length > 2_500_000) {
-        throw new BadRequestException('Proof image is too large (max ~2.5 MB)');
-      }
-      proofData = dto.proofBase64;
-      proofMimeType = dto.proofMimeType;
+      const proof = validateBase64Image({
+        base64: dto.proofBase64,
+        mimeType: dto.proofMimeType,
+        maxBytes: 2_500_000,
+        label: 'Proof image',
+      });
+      proofData = proof.base64;
+      proofMimeType = proof.mimeType;
     }
 
     const paidAt = new Date(dto.paidAt);
@@ -1086,15 +1086,14 @@ export class GymOpsService {
     let proofData: string | undefined;
     let proofMimeType: string | undefined;
     if (dto.proofBase64) {
-      if (!dto.proofMimeType?.startsWith('image/')) {
-        throw new BadRequestException('Proof must be an image');
-      }
-      const buf = Buffer.from(dto.proofBase64, 'base64');
-      if (buf.length > 2_500_000) {
-        throw new BadRequestException('Proof image is too large (max ~2.5 MB)');
-      }
-      proofData = dto.proofBase64;
-      proofMimeType = dto.proofMimeType;
+      const proof = validateBase64Image({
+        base64: dto.proofBase64,
+        mimeType: dto.proofMimeType,
+        maxBytes: 2_500_000,
+        label: 'Proof image',
+      });
+      proofData = proof.base64;
+      proofMimeType = proof.mimeType;
     }
 
     const billNumber = `SUP-${tenant.slug.slice(0, 4).toUpperCase()}-${Date.now().toString(36).slice(-6).toUpperCase()}`;

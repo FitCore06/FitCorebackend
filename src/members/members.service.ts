@@ -8,7 +8,12 @@ import {
 import * as bcrypt from 'bcryptjs';
 import { Role, type AuthUserPayload } from '../auth/auth.types.js';
 import { gymRole } from '../auth/guards/roles.guard.js';
+import { validateBase64Image } from '../common/image-upload.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import {
+  REGISTRATION_INVITE_KIND,
+  RegistrationInviteService,
+} from '../auth/registration-invite.service.js';
 import type { UpdateMemberProfileDto } from './dto/update-member-profile.dto.js';
 import type { CreateGymMemberDto } from './dto/create-gym-member.dto.js';
 import type { GymMemberDto } from './members.types.js';
@@ -27,7 +32,10 @@ function normalizeStatus(
 
 @Injectable()
 export class MembersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly registrationInvites: RegistrationInviteService,
+  ) {}
 
   private async tenantForSlug(gymSlug: string) {
     const tenant = await this.prisma.tenant.findUnique({
@@ -115,6 +123,21 @@ export class MembersService {
     return { userId: created.id, name: created.name, email: created.email };
   }
 
+  async createMemberRegistrationInvite(
+    user: AuthUserPayload,
+    gymSlug: string,
+    email?: string,
+  ) {
+    const admin = gymRole(user, Role.GYM_ADMIN, gymSlug);
+    if (!admin) throw new ForbiddenException('Gym admin only');
+    const tenant = await this.tenantForSlug(gymSlug);
+    return this.registrationInvites.issueInvite({
+      kind: REGISTRATION_INVITE_KIND.GYM_MEMBER,
+      gymId: tenant.id,
+      email: email?.trim().toLowerCase(),
+    });
+  }
+
   async getMyProfile(user: AuthUserPayload, gymSlug: string) {
     const member = gymRole(user, Role.MEMBER, gymSlug);
     if (!member) throw new ForbiddenException('Members only');
@@ -182,15 +205,14 @@ export class MembersService {
       data.profilePhotoMimeType = null;
       data.profilePhotoData = null;
     } else if (dto.profilePhotoBase64) {
-      if (!dto.profilePhotoMimeType?.startsWith('image/')) {
-        throw new BadRequestException('Profile photo must be an image');
-      }
-      const buf = Buffer.from(dto.profilePhotoBase64, 'base64');
-      if (buf.length > MAX_PHOTO_BYTES) {
-        throw new BadRequestException('Photo too large (max ~2.5 MB)');
-      }
-      data.profilePhotoMimeType = dto.profilePhotoMimeType;
-      data.profilePhotoData = dto.profilePhotoBase64;
+      const photo = validateBase64Image({
+        base64: dto.profilePhotoBase64,
+        mimeType: dto.profilePhotoMimeType,
+        maxBytes: MAX_PHOTO_BYTES,
+        label: 'Profile photo',
+      });
+      data.profilePhotoMimeType = photo.mimeType;
+      data.profilePhotoData = photo.base64;
     }
 
     const updated = await this.prisma.user.update({

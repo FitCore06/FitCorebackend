@@ -46,6 +46,21 @@ export class MembersController {
     return this.members.createForGym(req.user, gymSlug.trim(), dto);
   }
 
+  @Post('registration-invites')
+  @Roles(Role.GYM_ADMIN)
+  @ApiOperation({ summary: 'Issue a single-use invite for public member signup' })
+  createRegistrationInvite(
+    @Req() req: AuthedRequest,
+    @Query('gymSlug') gymSlug: string,
+    @Body() body: { email?: string },
+  ) {
+    return this.members.createMemberRegistrationInvite(
+      req.user,
+      gymSlug.trim(),
+      body.email,
+    );
+  }
+
   @Get('me/profile')
   @Roles(Role.MEMBER)
   myProfile(@Req() req: AuthedRequest, @Query('gymSlug') gymSlug: string) {

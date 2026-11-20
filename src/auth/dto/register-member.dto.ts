@@ -25,4 +25,9 @@ export class RegisterMemberDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  @ApiProperty({ description: 'Gym-issued registration invite token' })
+  @IsString()
+  @MinLength(16)
+  inviteToken!: string;
 }

@@ -28,8 +28,11 @@ import {
 import type { ChangePasswordDto } from './dto/change-password.dto.js';
 import type { ForgotPasswordDto } from './dto/forgot-password.dto.js';
 import type { ResetPasswordDto } from './dto/reset-password.dto.js';
+import { RegistrationInviteService } from './registration-invite.service.js';
 
 const ACCESS_TTL_SECONDS = 60 * 15;
+const FORGOT_PASSWORD_GENERIC_MESSAGE =
+  'If this email is registered with FitCore, you will receive password reset instructions shortly.';
 const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 
@@ -40,6 +43,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly mail: MailService,
+    private readonly registrationInvites: RegistrationInviteService,
   ) {}
 
   async registerAdmin(dto: RegisterAdminDto) {
@@ -48,6 +52,7 @@ export class AuthService {
         'Postgres is offline. Use test logins (DEV_AUTH_STUB) or start Docker and run db:migrate.',
       );
     }
+    await this.registrationInvites.consumeOwnerInvite(dto.inviteToken, dto.email);
     await this.assertEmailAvailable(dto.email);
     await this.assertSlugAvailable(dto.gymSlug);
 
@@ -96,10 +101,15 @@ export class AuthService {
         'Postgres is offline. Use test logins or start Docker and run db:seed.',
       );
     }
+    const { gymId } = await this.registrationInvites.consumeMemberInvite(
+      dto.inviteToken,
+      dto.email,
+      dto.gymSlug,
+    );
     await this.assertEmailAvailable(dto.email);
 
     const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: dto.gymSlug.toLowerCase() },
+      where: { id: gymId },
     });
     if (!tenant) {
       throw new NotFoundException('Gym not found for this code');
@@ -220,9 +230,7 @@ export class AuthService {
     if (isDevAuthStubEnabled()) {
       const { issued, token } = devAuthForgotPassword(email);
       if (!issued || !token) {
-        throw new NotFoundException(
-          'No FitCore account found for this email. Sign up or use a test login email.',
-        );
+        return this.uniformForgotPasswordResponse();
       }
       const base = this.getPublicAppUrl();
       if (!base) {
@@ -231,23 +239,19 @@ export class AuthService {
         );
       }
       const resetLink = `${base}/reset-password?token=${encodeURIComponent(token)}`;
-      const emailSent = await this.mail.sendPasswordResetEmail({
+      await this.mail.sendPasswordResetEmail({
         to: email,
         name: email.split('@')[0] ?? 'there',
         resetLink,
       });
-      return this.forgotPasswordResponse({
-        resetLink,
-        emailSent,
-        exposeLink,
-      });
+      return this.uniformForgotPasswordResponse(
+        exposeLink ? { resetLink } : undefined,
+      );
     }
 
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) {
-      throw new NotFoundException(
-        'No FitCore account found for this email. Sign up or ask your gym to add you.',
-      );
+      return this.uniformForgotPasswordResponse();
     }
 
     const base = this.getPublicAppUrl();
@@ -280,11 +284,9 @@ export class AuthService {
       resetLink,
     });
 
-    return this.forgotPasswordResponse({
-      resetLink,
-      emailSent,
-      exposeLink,
-    });
+    return this.uniformForgotPasswordResponse(
+      exposeLink && !emailSent ? { resetLink } : undefined,
+    );
   }
 
   async resetPasswordWithToken(dto: ResetPasswordDto) {
@@ -358,9 +360,15 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(dto.newPassword, 12);
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { passwordHash },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { passwordHash },
+      });
+      await tx.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
     });
 
     return { ok: true as const };
@@ -375,10 +383,6 @@ export class AuthService {
       return stub;
     }
 
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new UnauthorizedException();
-    }
     return this.buildUserPayload(userId);
   }
 
@@ -469,22 +473,11 @@ export class AuthService {
     }
   }
 
-  private forgotPasswordResponse(input: {
-    resetLink: string;
-    emailSent: boolean;
-    exposeLink: boolean;
-  }) {
-    const showLink = !input.emailSent && input.exposeLink;
+  private uniformForgotPasswordResponse(extras?: { resetLink?: string }) {
     return {
       ok: true as const,
-      registered: true as const,
-      emailSent: input.emailSent,
-      message: input.emailSent
-        ? 'Reset link sent — check your inbox (and spam).'
-        : showLink
-          ? 'Email is not configured on the server. Use the reset link below.'
-          : 'Could not send email. Ask your gym admin to configure RESEND_API_KEY on the API.',
-      ...(showLink ? { resetLink: input.resetLink } : {}),
+      message: FORGOT_PASSWORD_GENERIC_MESSAGE,
+      ...(extras?.resetLink ? { resetLink: extras.resetLink } : {}),
     };
   }
 

@@ -8,6 +8,7 @@ import {
 import bcrypt from 'bcryptjs';
 import { Role, type AuthUserPayload } from '../auth/auth.types.js';
 import { gymRole } from '../auth/guards/roles.guard.js';
+import { validateBase64Image } from '../common/image-upload.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { UpdateMemberProfileDto } from '../members/dto/update-member-profile.dto.js';
 import type { CreateTrainerLeaveRequestDto } from './dto/create-trainer-leave-request.dto.js';
@@ -378,15 +379,14 @@ export class TrainersService {
       data.profilePhotoMimeType = null;
       data.profilePhotoData = null;
     } else if (dto.profilePhotoBase64) {
-      if (!dto.profilePhotoMimeType?.startsWith('image/')) {
-        throw new BadRequestException('Profile photo must be an image');
-      }
-      const buf = Buffer.from(dto.profilePhotoBase64, 'base64');
-      if (buf.length > MAX_PHOTO_BYTES) {
-        throw new BadRequestException('Photo too large (max ~2.5 MB)');
-      }
-      data.profilePhotoMimeType = dto.profilePhotoMimeType;
-      data.profilePhotoData = dto.profilePhotoBase64;
+      const photo = validateBase64Image({
+        base64: dto.profilePhotoBase64,
+        mimeType: dto.profilePhotoMimeType,
+        maxBytes: MAX_PHOTO_BYTES,
+        label: 'Profile photo',
+      });
+      data.profilePhotoMimeType = photo.mimeType;
+      data.profilePhotoData = photo.base64;
     }
 
     const updated = await this.prisma.user.update({

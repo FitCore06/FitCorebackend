@@ -16,7 +16,8 @@ describe('MembersService admin creation security', () => {
     userTenantRole: { create: vi.fn() },
     $transaction: vi.fn(async (callback: (tx: typeof prisma) => unknown) => callback(prisma)),
   };
-  const service = new MembersService(prisma as never);
+  const registrationInvites = { issueInvite: vi.fn() };
+  const service = new MembersService(prisma as never, registrationInvites as never);
 
   beforeEach(() => vi.clearAllMocks());
 

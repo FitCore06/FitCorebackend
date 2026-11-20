@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   SEED_DIET_TEMPLATES,
   SEED_WORKOUT_TEMPLATES,
@@ -578,9 +579,41 @@ async function main() {
     });
   }
 
+  const ownerInviteToken =
+    process.env.SEED_OWNER_INVITE_TOKEN ?? randomBytes(32).toString('base64url');
+  const memberInviteToken =
+    process.env.SEED_MEMBER_INVITE_TOKEN ?? randomBytes(32).toString('base64url');
+  const inviteTtl = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const hash = (token: string) =>
+    createHash('sha256').update(token).digest('hex');
+
+  await prisma.registrationInvite.createMany({
+    data: [
+      {
+        kind: 'gym_owner',
+        tokenHash: hash(ownerInviteToken),
+        expiresAt: inviteTtl,
+      },
+      {
+        kind: 'gym_member',
+        tokenHash: hash(memberInviteToken),
+        gymId: tenant.id,
+        expiresAt: inviteTtl,
+      },
+    ],
+  });
+
   console.log('Seed OK — demo-gym test accounts (password: FitCore@123):');
   for (const a of accounts) {
     console.log(`  ${a.role.padEnd(10)} ${a.email}`);
+  }
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('  Registration invites (local signup only):');
+    console.log(`    owner inviteToken: use on /signup owner tab`);
+    console.log(`    member inviteToken: use with gym code demo-gym`);
+    console.log(
+      '    Pin tokens: SEED_OWNER_INVITE_TOKEN / SEED_MEMBER_INVITE_TOKEN in env before seed.',
+    );
   }
 }
 
