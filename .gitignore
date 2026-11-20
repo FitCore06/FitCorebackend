@@ -1,0 +1,35 @@
+node_modules/
+dist/
+coverage/
+.cache/
+*.tsbuildinfo
+
+.env
+.env.*
+!.env.example
+*.env
+
+# Local database files and dumps
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.sql
+*.sql.gz
+*.bak
+
+# Private keys, certificates, and credential files
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+credentials*.json
+
+# Local Prisma migration copies
+prisma/migrations_backup/
+!prisma/migrations/**/migration.sql
+
+*.log
+.DS_Store

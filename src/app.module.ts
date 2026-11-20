@@ -1,0 +1,48 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { AssignmentsModule } from './assignments/assignments.module.js';
+import { AttendanceModule } from './attendance/attendance.module.js';
+import { BookingsModule } from './bookings/bookings.module.js';
+import { FeedbackModule } from './feedback/feedback.module.js';
+import { FitnessModule } from './fitness/fitness.module.js';
+import { NutritionModule } from './nutrition/nutrition.module.js';
+import { MembersModule } from './members/members.module.js';
+import { PaymentsModule } from './payments/payments.module.js';
+import { GymOpsModule } from './gym-ops/gym-ops.module.js';
+import { TrainersModule } from './trainers/trainers.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
+import { MessagesModule } from './messages/messages.module.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
+import { ScheduleModule } from './schedule/schedule.module.js';
+import { AuditModule } from './audit/audit.module.js';
+import { AuthModule } from './auth/auth.module.js';
+import { HealthController } from './health/health.controller.js';
+import { PrismaModule } from './prisma/prisma.module.js';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env'],
+    }),
+    PrismaModule,
+    AuthModule,
+    AssignmentsModule,
+    AttendanceModule,
+    BookingsModule,
+    FeedbackModule,
+    MembersModule,
+    FitnessModule,
+    NutritionModule,
+    PaymentsModule,
+    GymOpsModule,
+    TrainersModule,
+    NotificationsModule,
+    MessagesModule,
+    DashboardModule,
+    ScheduleModule,
+    AuditModule,
+  ],
+  controllers: [HealthController],
+})
+export class AppModule {}
