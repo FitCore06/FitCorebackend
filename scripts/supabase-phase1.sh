@@ -5,7 +5,7 @@ set -eu
 cd "$(dirname "$0")/.."
 
 PROJECT_REF="${SUPABASE_PROJECT_REF:-syemwfpinkqeejijrllq}"
-POOLER_HOST="${SUPABASE_POOLER_HOST:-aws-0-ap-southeast-2.pooler.supabase.com}"
+POOLER_HOST="${SUPABASE_POOLER_HOST:-aws-1-ap-southeast-2.pooler.supabase.com}"
 
 pw=""
 if [ -n "${SUPABASE_DB_PASSWORD:-}" ]; then
