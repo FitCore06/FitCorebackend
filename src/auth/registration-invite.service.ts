@@ -20,8 +20,11 @@ export type RegistrationInviteKind =
 
 const DEFAULT_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-const INVITE_INVALID_MESSAGE =
+const OWNER_INVITE_INVALID_MESSAGE =
   'This owner invite code is invalid, already used, or expired. Use the code FitCore sent you — not your gym name or password.';
+
+const MEMBER_INVITE_INVALID_MESSAGE =
+  'This member invite code is invalid, already used, or expired. Ask your gym to generate a new code from Admin → Members.';
 
 @Injectable()
 export class RegistrationInviteService {
@@ -102,7 +105,7 @@ export class RegistrationInviteService {
         this.rethrowInviteStorageError(error);
       }
       if (!invite?.gymId) {
-        throw new ForbiddenException(INVITE_INVALID_MESSAGE);
+        throw this.forbiddenForKind(REGISTRATION_INVITE_KIND.GYM_MEMBER);
       }
       expectedGymId = invite.gymId;
     }
@@ -148,7 +151,7 @@ export class RegistrationInviteService {
         data: { usedAt: now },
       });
       if (updated.count !== 1) {
-        throw new ForbiddenException(INVITE_INVALID_MESSAGE);
+        throw this.forbiddenForKind(kind);
       }
     } catch (error) {
       if (error instanceof ForbiddenException) {
@@ -166,22 +169,30 @@ export class RegistrationInviteService {
     now: Date,
   ) {
     if (!invite || invite.kind !== kind) {
-      throw new ForbiddenException(INVITE_INVALID_MESSAGE);
+      throw this.forbiddenForKind(kind);
     }
     if (invite.usedAt) {
-      throw new ForbiddenException(INVITE_INVALID_MESSAGE);
+      throw this.forbiddenForKind(kind);
     }
     if (invite.expiresAt < now) {
-      throw new ForbiddenException(INVITE_INVALID_MESSAGE);
+      throw this.forbiddenForKind(kind);
     }
     if (invite.email && invite.email !== email) {
-      throw new ForbiddenException(INVITE_INVALID_MESSAGE);
+      throw this.forbiddenForKind(kind);
     }
     if (kind === REGISTRATION_INVITE_KIND.GYM_MEMBER) {
       if (!invite.gymId || invite.gymId !== expectedGymId) {
-        throw new ForbiddenException('Registration invite is not valid for this gym');
+        throw new ForbiddenException(MEMBER_INVITE_INVALID_MESSAGE);
       }
     }
+  }
+
+  private forbiddenForKind(kind: RegistrationInviteKind) {
+    return new ForbiddenException(
+      kind === REGISTRATION_INVITE_KIND.GYM_OWNER
+        ? OWNER_INVITE_INVALID_MESSAGE
+        : MEMBER_INVITE_INVALID_MESSAGE,
+    );
   }
 
   private rethrowInviteStorageError(error: unknown): never {
