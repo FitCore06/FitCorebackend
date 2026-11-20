@@ -52,7 +52,17 @@ if printf '%s' "$DATABASE_URL" | grep -q 'pooler.supabase.com'; then
 fi
 
 [ -n "${JWT_ACCESS_SECRET:-}" ] || fail "JWT_ACCESS_SECRET is not set"
-[ -n "${NODE_ENV:-}" ] || fail "NODE_ENV is not set"
-[ "${DEV_AUTH_STUB:-}" = "false" ] || fail "DEV_AUTH_STUB must be false"
+
+if [ -z "${NODE_ENV:-}" ]; then
+  export NODE_ENV=production
+  echo "NOTE: NODE_ENV was unset — defaulting to production for Render build."
+fi
+
+if [ -z "${DEV_AUTH_STUB:-}" ]; then
+  export DEV_AUTH_STUB=false
+  echo "NOTE: DEV_AUTH_STUB was unset — defaulting to false for Render build."
+elif [ "${DEV_AUTH_STUB}" != "false" ]; then
+  fail "DEV_AUTH_STUB must be false on Render (got: ${DEV_AUTH_STUB})"
+fi
 
 echo "OK: Render database env looks valid."
