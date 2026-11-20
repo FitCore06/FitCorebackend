@@ -42,6 +42,12 @@ if printf '%s' "$DATABASE_URL" | grep -q 'pooler.supabase.com'; then
   if printf '%s' "$DATABASE_URL" | grep -qv 'postgres\.'; then
     fail "DATABASE_URL uses pooler but username must be postgres.PROJECT_REF"
   fi
+  if printf '%s' "$DATABASE_URL" | grep -q ':5432/'; then
+  if printf '%s' "$DATABASE_URL" | grep -qv 'connection_limit='; then
+    echo "WARN: Session pooler (5432) without connection_limit — Supabase EMAXCONNSESSION (pool_size~15) can crash Nest on startup."
+    echo "      Add &connection_limit=3..5, or use transaction pooler :6543 with pgbouncer=true."
+  fi
+  fi
 fi
 
 # DIRECT_DATABASE_URL optional on Render (db.* is IPv6-only). Local dev only if needed.
