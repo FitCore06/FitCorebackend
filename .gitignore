@@ -33,3 +33,9 @@ prisma/migrations_backup/
 
 *.log
 .DS_Store
+
+# Local IDE / agent skill caches (not shared)
+.agents/
+.claude/
+.cursor/
+.devin/
