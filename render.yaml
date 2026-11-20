@@ -1,4 +1,8 @@
 # Render Blueprint — FitCore API (NestJS + Prisma → Supabase Postgres)
+#
+# Build: generate Prisma client + compile only (no DB).
+# Migrations: explicit — npm run render:migrate (session pooler DATABASE_URL).
+# Optional per deploy: preDeployCommand: npm run render:migrate
 services:
   - type: web
     name: fitcore-api

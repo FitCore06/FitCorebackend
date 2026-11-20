@@ -42,13 +42,11 @@ if printf '%s' "$DATABASE_URL" | grep -q 'pooler.supabase.com'; then
   if printf '%s' "$DATABASE_URL" | grep -qv 'postgres\.'; then
     fail "DATABASE_URL uses pooler but username must be postgres.PROJECT_REF"
   fi
+fi
+
+# DIRECT_DATABASE_URL optional on Render (db.* is IPv6-only). Local dev only if needed.
+if [ -n "${DIRECT_DATABASE_URL:-}" ]; then
   check_url "DIRECT_DATABASE_URL" "$DIRECT_DATABASE_URL"
-  if printf '%s' "$DIRECT_DATABASE_URL" | grep -q 'postgres\.'; then
-    fail "DIRECT_DATABASE_URL must use user postgres only (not postgres.PROJECT_REF)"
-  fi
-  if printf '%s' "$DIRECT_DATABASE_URL" | grep -q 'pooler.supabase.com'; then
-    fail "DIRECT_DATABASE_URL must be db.*.supabase.co (Direct), not pooler"
-  fi
 fi
 
 [ -n "${JWT_ACCESS_SECRET:-}" ] || fail "JWT_ACCESS_SECRET is not set"

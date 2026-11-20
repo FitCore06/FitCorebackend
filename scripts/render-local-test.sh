@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Simulates Render: prod npm install + compile.sh + migrate (same as dashboard build).
+# Simulates Render: prod npm install + compile (no migrate) + optional runtime smoke.
 set -eu
 cd "$(dirname "$0")/.."
 
