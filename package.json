@@ -12,6 +12,8 @@
     "prestart:dev": "prisma generate && sh -c 'lsof -ti :3001 2>/dev/null | xargs kill -9 2>/dev/null || true'",
     "build": "sh scripts/compile.sh",
     "render:build": "bash scripts/render-build.sh",
+    "render:env-check": "sh scripts/validate-render-env.sh",
+    "render:local-test": "sh scripts/render-local-test.sh",
     "deploy": "nest deploy",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
