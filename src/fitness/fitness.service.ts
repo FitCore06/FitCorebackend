@@ -13,6 +13,10 @@ import type { UpsertDietTemplateDto } from './dto/upsert-diet-template.dto.js';
 import type { UpsertWorkoutTemplateDto } from './dto/upsert-workout-template.dto.js';
 import type { PatchDietMealDto } from './dto/patch-diet-meal.dto.js';
 import type { PatchWorkoutSetDto } from './dto/patch-workout-set.dto.js';
+import {
+  SEED_DIET_TEMPLATES,
+  SEED_WORKOUT_TEMPLATES,
+} from './fitness.seed-data.js';
 import type {
   DietTemplateDto,
   MemberDietStatusDto,
@@ -184,6 +188,35 @@ export class FitnessService {
     return memberEmail.toLowerCase() === 'newmember@gym.test'
       ? 'diet-cut'
       : 'diet-lean';
+  }
+
+  private workoutSeedTemplate(builtInKey: string): WorkoutTemplateDto | null {
+    const seed = SEED_WORKOUT_TEMPLATES.find((t) => t.builtInKey === builtInKey);
+    if (!seed) return null;
+    return {
+      id: seed.builtInKey,
+      builtIn: true,
+      name: seed.name,
+      goal: seed.goal,
+      daysPerWeek: seed.daysPerWeek,
+      exercises: seed.exercises.map((e) => ({ ...e })),
+    };
+  }
+
+  private dietSeedTemplate(builtInKey: string): DietTemplateDto | null {
+    const seed = SEED_DIET_TEMPLATES.find((t) => t.builtInKey === builtInKey);
+    if (!seed) return null;
+    return {
+      id: seed.builtInKey,
+      builtIn: true,
+      name: seed.name,
+      goal: seed.goal,
+      dailyCalories: seed.dailyCalories,
+      proteinG: seed.proteinG,
+      carbsG: seed.carbsG,
+      fatG: seed.fatG,
+      meals: seed.meals.map((m) => ({ ...m })),
+    };
   }
 
   private assertTrainerOrAdmin(user: AuthUserPayload, gymId: string) {
@@ -476,8 +509,11 @@ export class FitnessService {
     const row = await this.prisma.workoutTemplate.findFirst({
       where: { gymId, builtInKey: key },
     });
-    if (!row) throw new NotFoundException('Default workout template missing');
-    return this.templateToWeeklyPlan(this.workoutRowToDto(row), {
+    const template = row
+      ? this.workoutRowToDto(row)
+      : this.workoutSeedTemplate(key);
+    if (!template) throw new NotFoundException('Default workout template missing');
+    return this.templateToWeeklyPlan(template, {
       source: 'default',
     });
   }
@@ -503,8 +539,10 @@ export class FitnessService {
     const row = await this.prisma.dietTemplate.findFirst({
       where: { gymId, builtInKey: key },
     });
-    if (!row) throw new NotFoundException('Default diet template missing');
-    return this.dietRowToDto(row);
+    if (row) return this.dietRowToDto(row);
+    const seed = this.dietSeedTemplate(key);
+    if (!seed) throw new NotFoundException('Default diet template missing');
+    return seed;
   }
 
   private async assertTrainerForMember(
