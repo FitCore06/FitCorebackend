@@ -11,6 +11,7 @@ import { WorkoutSessionController } from './workout-session.controller.js';
 import { WorkoutHistoryController } from './workout-history.controller.js';
 import { WorkoutRecordsController } from './workout-records.controller.js';
 import { WorkoutSessionService } from './workout-session.service.js';
+import { MemberWeeklyPlanService } from './member-weekly-plan.service.js';
 
 @Module({
   imports: [AuthModule],
@@ -23,12 +24,19 @@ import { WorkoutSessionService } from './workout-session.service.js';
     WorkoutRecordsController,
   ],
   providers: [
+    MemberWeeklyPlanService,
     FitnessService,
     ExerciseService,
     WorkoutPlanService,
     WorkoutSessionService,
     RolesGuard,
   ],
-  exports: [FitnessService, ExerciseService, WorkoutPlanService, WorkoutSessionService],
+  exports: [
+    FitnessService,
+    ExerciseService,
+    WorkoutPlanService,
+    WorkoutSessionService,
+    MemberWeeklyPlanService,
+  ],
 })
 export class FitnessModule {}

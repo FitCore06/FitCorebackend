@@ -8,7 +8,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { Role, type AuthUserPayload } from '../auth/auth.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { FitnessService } from './fitness.service.js';
+import { MemberWeeklyPlanService } from './member-weekly-plan.service.js';
 import {
   CancelWorkoutSessionDto,
   CompleteWorkoutSessionSetDto,
@@ -21,7 +21,7 @@ import {
 export class WorkoutSessionService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly fitness: FitnessService,
+    private readonly memberWeeklyPlan: MemberWeeklyPlanService,
   ) {}
 
   private async trainerReadScope(
@@ -317,7 +317,7 @@ export class WorkoutSessionService {
       };
       byDate.set(row.logDate, {
         ...prev,
-        setCount: Math.max(prev.setCount, row._count._all),
+        setCount: prev.setCount + row._count._all,
       });
     }
 
@@ -481,7 +481,7 @@ export class WorkoutSessionService {
       }
 
       if (seeded === 0) {
-        const weekly = await this.fitness.resolveWeeklyPlanForMember(
+        const weekly = await this.memberWeeklyPlan.resolveWeeklyPlanForMember(
           gymId,
           user.id,
           user.email,

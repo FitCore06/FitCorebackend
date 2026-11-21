@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { Role, type AuthUserPayload } from '../auth/auth.types.js';
 import { gymRole } from '../auth/guards/roles.guard.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { MemberWeeklyPlanService } from './member-weekly-plan.service.js';
 import type { AssignPlanDto } from './dto/assign-plan.dto.js';
 import type { UpsertDietTemplateDto } from './dto/upsert-diet-template.dto.js';
 import type { UpsertWorkoutTemplateDto } from './dto/upsert-workout-template.dto.js';
@@ -52,7 +53,10 @@ const MEAL_LABELS: Record<string, string> = {
 
 @Injectable()
 export class FitnessService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly weeklyPlanResolver: MemberWeeklyPlanService,
+  ) {}
 
   private resolveGymSlug(user: AuthUserPayload, gymSlug?: string) {
     const slug =
@@ -571,46 +575,11 @@ export class FitnessService {
     memberUserId: string,
     memberEmail: string,
   ): Promise<WeeklyWorkoutPlanDto> {
-    const custom = await this.prisma.memberWeeklyWorkout.findUnique({
-      where: {
-        gymId_memberUserId_source: {
-          gymId,
-          memberUserId,
-          source: 'member',
-        },
-      },
-    });
-    if (custom) {
-      return custom.planJson as unknown as WeeklyWorkoutPlanDto;
-    }
-
-    const assigned = await this.prisma.fitnessPlanAssignment.findUnique({
-      where: {
-        gymId_memberUserId_planType: {
-          gymId,
-          memberUserId,
-          planType: 'workout',
-        },
-      },
-    });
-    if (assigned) {
-      return assigned.planSnapshot as unknown as WeeklyWorkoutPlanDto;
-    }
-
-    const trainerWeekly = await this.prisma.memberWeeklyWorkout.findUnique({
-      where: {
-        gymId_memberUserId_source: {
-          gymId,
-          memberUserId,
-          source: 'trainer',
-        },
-      },
-    });
-    if (trainerWeekly) {
-      return trainerWeekly.planJson as unknown as WeeklyWorkoutPlanDto;
-    }
-
-    return this.memberWeeklyPlan(memberUserId, gymId, memberEmail);
+    return this.weeklyPlanResolver.resolveWeeklyPlanForMember(
+      gymId,
+      memberUserId,
+      memberEmail,
+    );
   }
 
   async myWorkoutPlan(user: AuthUserPayload): Promise<MemberWorkoutPlanResponse> {
