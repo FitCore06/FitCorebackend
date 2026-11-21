@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { Role, Roles, RolesGuard } from '../auth/guards/roles.guard.js';
 import { CreatePaymentDto } from './dto/create-payment.dto.js';
 import { CreateRefundDto } from './dto/create-refund.dto.js';
+import { MemberPaymentRequestDto } from './dto/member-payment-request.dto.js';
 import { RazorpayOrderDto } from './dto/razorpay-order.dto.js';
 import { UpdatePaymentStatusDto } from './dto/update-payment-status.dto.js';
 import { PaymentsService } from './payments.service.js';
@@ -41,6 +42,26 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Paid receipts for logged-in member' })
   myReceipts(@Req() req: AuthedRequest) {
     return this.payments.listForMember(req.user);
+  }
+
+  @Get('me/items')
+  @Roles(Role.MEMBER)
+  @ApiOperation({ summary: 'Paid and pending payments for logged-in member' })
+  myPaymentItems(@Req() req: AuthedRequest) {
+    return this.payments.listMyPaymentItems(req.user);
+  }
+
+  @Post('me/request')
+  @Roles(Role.MEMBER)
+  @ApiOperation({ summary: 'Submit UPI/bank payment for owner approval' })
+  submitMemberPayment(@Req() req: AuthedRequest, @Body() dto: MemberPaymentRequestDto) {
+    return this.payments.submitMemberPaymentRequest(req.user, dto);
+  }
+
+  @Get('proof/:id')
+  @Roles(Role.GYM_ADMIN, Role.MEMBER)
+  paymentProof(@Req() req: AuthedRequest, @Param('id') id: string) {
+    return this.payments.paymentProofDataUrl(req.user, id);
   }
 
   @Post()

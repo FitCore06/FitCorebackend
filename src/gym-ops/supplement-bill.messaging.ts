@@ -1,12 +1,12 @@
-export type WhatsAppStubStatus = 'sent' | 'skipped' | 'failed';
+export type SupplementBillDeliveryStatus = 'sent' | 'skipped' | 'failed';
 
-export type WhatsAppStubResult = {
-  status: WhatsAppStubStatus;
+export type SupplementBillDeliveryResult = {
+  status: SupplementBillDeliveryStatus;
   detail: string;
   phone: string | null;
 };
 
-function normalizeIndianPhone(raw: string): string | null {
+export function normalizeIndianPhone(raw: string): string | null {
   const digits = raw.replace(/\D/g, '');
   if (digits.length === 10) return `91${digits}`;
   if (digits.length === 12 && digits.startsWith('91')) return digits;
@@ -14,15 +14,15 @@ function normalizeIndianPhone(raw: string): string | null {
   return null;
 }
 
-/** Demo stub — logs payload; wire Meta Cloud API / Twilio in production. */
-export function sendWhatsAppBillStub(
+/** Demo — logs bill text; production can wire SMS or another provider later. */
+export function sendSupplementBillPhoneStub(
   phone: string | null | undefined,
   message: string,
-): WhatsAppStubResult {
+): SupplementBillDeliveryResult {
   if (!phone?.trim()) {
     return {
       status: 'skipped',
-      detail: 'Member has no phone — add phone on profile to enable WhatsApp bill.',
+      detail: 'Member has no phone — add phone on profile to enable bill delivery.',
       phone: null,
     };
   }
@@ -30,16 +30,14 @@ export function sendWhatsAppBillStub(
   if (!normalized) {
     return {
       status: 'failed',
-      detail: 'Phone number format is invalid for WhatsApp.',
+      detail: 'Phone number format is invalid.',
       phone: phone,
     };
   }
-  console.log(
-    `[whatsapp-stub] to=+${normalized}\n---\n${message}\n---\n(demo: open https://wa.me/${normalized}?text=${encodeURIComponent(message.slice(0, 500))} for manual test)`,
-  );
+  console.log(`[supplement-bill-stub] to=+${normalized}\n---\n${message}\n---`);
   return {
     status: 'sent',
-    detail: `Bill queued to +${normalized} (WhatsApp provider stub)`,
+    detail: `Bill queued to +${normalized} (delivery stub)`,
     phone: `+${normalized}`,
   };
 }

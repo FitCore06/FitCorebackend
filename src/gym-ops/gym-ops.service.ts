@@ -22,10 +22,12 @@ import {
   type CreateOtherExpenseDto,
 } from './dto/create-other-expense.dto.js';
 import type { CreateSupplementSaleDto } from './dto/create-supplement-sale.dto.js';
+import type { UpdatePaymentCollectionDto } from './dto/update-payment-collection.dto.js';
+import { paymentCollectionFromTenant } from './payment-collection.util.js';
 import {
   formatSupplementBillMessage,
-  sendWhatsAppBillStub,
-} from './whatsapp.stub.js';
+  sendSupplementBillPhoneStub,
+} from './supplement-bill.messaging.js';
 import type { AssignMembershipDto, RenewMembershipDto } from './dto/assign-membership.dto.js';
 
 @Injectable()
@@ -1120,7 +1122,7 @@ export class GymOpsService {
     });
 
     if (sendWa) {
-      const wa = sendWhatsAppBillStub(member.phone, whatsappMessage);
+      const wa = sendSupplementBillPhoneStub(member.phone, whatsappMessage);
       whatsappStatus = wa.status;
       whatsappPhone = wa.phone ?? member.phone;
       whatsappDetail = wa.detail;
@@ -1209,7 +1211,7 @@ export class GymOpsService {
         paymentMethod: row.paymentMethod,
         notes: row.notes,
       });
-    const wa = sendWhatsAppBillStub(row.member.phone, message);
+    const wa = sendSupplementBillPhoneStub(row.member.phone, message);
     const updated = await this.prisma.gymSupplementSale.update({
       where: { id: row.id },
       data: {
@@ -1645,6 +1647,70 @@ export class GymOpsService {
     };
   }
 
+  async getPaymentCollection(user: AuthUserPayload, gymSlug: string) {
+    const slug = gymSlug?.trim().toLowerCase();
+    if (!slug) throw new BadRequestException('gymSlug is required');
+    const allowed =
+      gymRole(user, Role.GYM_ADMIN, slug) || gymRole(user, Role.MEMBER, slug);
+    if (!allowed) throw new ForbiddenException('Not allowed for this gym');
+    const tenant = await this.prisma.tenant.findUnique({ where: { slug } });
+    if (!tenant) throw new NotFoundException('Gym not found');
+    return paymentCollectionFromTenant(tenant);
+  }
+
+  async updatePaymentCollection(
+    user: AuthUserPayload,
+    gymSlug: string,
+    dto: UpdatePaymentCollectionDto,
+  ) {
+    const tenant = await this.tenantForAdmin(user, gymSlug);
+    const data: {
+      payoutBankHolderName?: string | null;
+      payoutBankName?: string | null;
+      payoutBankAccountNumber?: string | null;
+      payoutBankIfsc?: string | null;
+      payoutUpiId?: string | null;
+      payoutUpiQrMimeType?: string | null;
+      payoutUpiQrData?: string | null;
+    } = {};
+
+    if (dto.bankHolderName !== undefined) {
+      data.payoutBankHolderName = optionalTextField(dto.bankHolderName);
+    }
+    if (dto.bankName !== undefined) {
+      data.payoutBankName = optionalTextField(dto.bankName);
+    }
+    if (dto.bankAccountNumber !== undefined) {
+      data.payoutBankAccountNumber = optionalTextField(dto.bankAccountNumber);
+    }
+    if (dto.bankIfsc !== undefined) {
+      const ifsc = optionalTextField(dto.bankIfsc);
+      data.payoutBankIfsc = ifsc ? ifsc.toUpperCase() : null;
+    }
+    if (dto.upiId !== undefined) {
+      data.payoutUpiId = optionalTextField(dto.upiId);
+    }
+    if (dto.clearUpiQr) {
+      data.payoutUpiQrMimeType = null;
+      data.payoutUpiQrData = null;
+    } else if (dto.upiQrBase64) {
+      const qr = validateBase64Image({
+        base64: dto.upiQrBase64,
+        mimeType: dto.upiQrMimeType,
+        maxBytes: 2_500_000,
+        label: 'UPI QR',
+      });
+      data.payoutUpiQrMimeType = qr.mimeType;
+      data.payoutUpiQrData = qr.base64;
+    }
+
+    const updated = await this.prisma.tenant.update({
+      where: { id: tenant.id },
+      data,
+    });
+    return paymentCollectionFromTenant(updated);
+  }
+
   async settings(user: AuthUserPayload, gymSlug: string) {
     const tenant = await this.tenantForAdmin(user, gymSlug);
     const gymId = tenant.id;
@@ -1697,8 +1763,15 @@ export class GymOpsService {
       membershipPlans,
       memberSignupUrl: `${appPublicUrl}/signup`,
       adminWebUrl: appPublicUrl,
+      paymentCollection: paymentCollectionFromTenant(tenant),
     };
   }
+}
+
+function optionalTextField(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
 }
 
 function financePctChange(current: number, previous: number): number | null {

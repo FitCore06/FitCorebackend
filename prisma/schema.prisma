@@ -15,6 +15,14 @@ model Tenant {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  payoutBankHolderName   String? @map("payout_bank_holder_name")
+  payoutBankName         String? @map("payout_bank_name")
+  payoutBankAccountNumber String? @map("payout_bank_account_number")
+  payoutBankIfsc         String? @map("payout_bank_ifsc")
+  payoutUpiId            String? @map("payout_upi_id")
+  payoutUpiQrMimeType    String? @map("payout_upi_qr_mime_type")
+  payoutUpiQrData        String? @map("payout_upi_qr_data") @db.Text
+
   branches                 Branch[]
   userRoles                UserTenantRole[]
   memberTrainerAssignments MemberTrainerAssignment[]
@@ -461,6 +469,8 @@ model GymPayment {
   refundedAmountInr Int      @default(0) @map("refunded_amount_inr")
   idempotencyKey    String?  @unique @map("idempotency_key")
   providerOrderId   String?  @unique @map("provider_order_id")
+  proofMimeType     String?  @map("proof_mime_type")
+  proofData         String?  @map("proof_data") @db.Text
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 

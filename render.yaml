@@ -3,6 +3,10 @@
 # Build: generate Prisma client + compile only (no DB).
 # Migrations: explicit — npm run render:migrate (session pooler DATABASE_URL).
 # Optional per deploy: preDeployCommand: npm run render:migrate
+#
+# Membership expiry reminders: FITCORE_MEMBERSHIP_EXPIRY_CRON_ENABLED=true (~9am IST in-process).
+# Optional trigger: POST /api/v1/automation/membership-expiry/run + FITCORE_AUTOMATION_SECRET.
+# Env: FITCORE_GYM_SLUG, FITCORE_EXPIRY_NOTIFY_DAYS, EXPO_ACCESS_TOKEN (push).
 services:
   - type: web
     name: fitcore-api

@@ -9,7 +9,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Role, type AuthUserPayload } from '../auth/auth.types.js';
 import { gymRole } from '../auth/guards/roles.guard.js';
+import { validateBase64Image } from '../common/image-upload.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import type { MemberPaymentRequestDto } from './dto/member-payment-request.dto.js';
 import type { CreatePaymentDto } from './dto/create-payment.dto.js';
 import type { CreateRefundDto } from './dto/create-refund.dto.js';
 import type {
@@ -53,6 +55,7 @@ export class PaymentsService {
     method: string;
     status: string;
     createdAt: Date;
+    proofData?: string | null;
     member: { name: string; email: string };
   }): PaymentDto {
     return {
@@ -65,6 +68,7 @@ export class PaymentsService {
       method: row.method,
       status: row.status as PaymentStatus,
       at: formatWhen(row.createdAt),
+      hasProof: Boolean(row.proofData?.trim()),
     };
   }
 
@@ -106,6 +110,105 @@ export class PaymentsService {
       amountInr: r.amountInr,
       paidAt: formatWhen(r.createdAt),
     }));
+  }
+
+  async listMyPaymentItems(user: AuthUserPayload) {
+    const memberRole = user.roles.find((r) => r.role === Role.MEMBER);
+    if (!memberRole) return [];
+
+    const rows = await this.prisma.gymPayment.findMany({
+      where: {
+        gymId: memberRole.gymId,
+        memberUserId: user.id,
+        status: { in: ['paid', 'pending'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    });
+
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      amountInr: r.amountInr,
+      method: r.method,
+      status: r.status as PaymentStatus,
+      at: formatWhen(r.createdAt),
+      hasProof: Boolean(r.proofData?.trim()),
+    }));
+  }
+
+  async submitMemberPaymentRequest(user: AuthUserPayload, dto: MemberPaymentRequestDto) {
+    const memberRole = user.roles.find((r) => r.role === Role.MEMBER);
+    if (!memberRole) throw new ForbiddenException('Members only');
+
+    let proof:
+      | { proofMimeType: string; proofData: string }
+      | { proofMimeType: null; proofData: null } = {
+      proofMimeType: null,
+      proofData: null,
+    };
+    if (dto.proofBase64) {
+      const validated = validateBase64Image({
+        base64: dto.proofBase64,
+        mimeType: dto.proofMimeType,
+        maxBytes: 2_500_000,
+        label: 'Payment proof',
+      });
+      proof = { proofMimeType: validated.mimeType, proofData: validated.base64 };
+    }
+
+    const title = dto.title?.trim() || 'Membership renewal (UPI)';
+    const method = (dto.method?.trim() || 'UPI').slice(0, 40);
+
+    if (dto.idempotencyKey) {
+      const existing = await this.prisma.gymPayment.findFirst({
+        where: { gymId: memberRole.gymId, idempotencyKey: dto.idempotencyKey.trim() },
+        include: { member: true },
+      });
+      if (existing) return this.toDto(existing);
+    }
+
+    const row = await this.prisma.gymPayment.create({
+      data: {
+        gymId: memberRole.gymId,
+        memberUserId: user.id,
+        title,
+        amountInr: dto.amountInr,
+        method,
+        status: 'pending',
+        idempotencyKey: dto.idempotencyKey?.trim() || null,
+        proofMimeType: proof.proofMimeType,
+        proofData: proof.proofData,
+      },
+      include: { member: true },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        gymId: memberRole.gymId,
+        userId: user.id,
+        action: 'payment.member_submitted',
+        resource: row.id,
+        meta: { amountInr: row.amountInr, hasProof: Boolean(proof.proofData) },
+      },
+    });
+
+    return this.toDto(row);
+  }
+
+  async paymentProofDataUrl(user: AuthUserPayload, paymentId: string) {
+    const row = await this.prisma.gymPayment.findUnique({
+      where: { id: paymentId },
+      include: { tenant: true },
+    });
+    if (!row?.proofData || !row.proofMimeType) throw new NotFoundException('No proof on file');
+    const admin = gymRole(user, Role.GYM_ADMIN, row.tenant.slug);
+    const memberOk = user.id === row.memberUserId;
+    if (!admin && !memberOk) throw new ForbiddenException('Not allowed');
+    return {
+      mimeType: row.proofMimeType,
+      dataUrl: `data:${row.proofMimeType};base64,${row.proofData}`,
+    };
   }
 
   async create(user: AuthUserPayload, dto: CreatePaymentDto): Promise<PaymentDto> {

@@ -26,6 +26,7 @@ import { CreateTrialLeadDto } from './dto/create-trial-lead.dto.js';
 import { AssignMembershipDto, RenewMembershipDto } from './dto/assign-membership.dto.js';
 import { UpdateCrmLeadDto } from './dto/update-crm-lead.dto.js';
 import { UpdateEquipmentDto } from './dto/update-equipment.dto.js';
+import { UpdatePaymentCollectionDto } from './dto/update-payment-collection.dto.js';
 import { GymOpsService } from './gym-ops.service.js';
 
 type AuthedRequest = Request & { user: AuthUserPayload };
@@ -358,9 +359,25 @@ export class GymOpsController {
     return this.ops.revokeBranchAccess(req.user, gymSlug, branchId, userId);
   }
 
+  @Get('payment-collection')
+  @Roles(Role.GYM_ADMIN, Role.MEMBER)
+  paymentCollection(@Req() req: AuthedRequest, @Query('gymSlug') gymSlug: string) {
+    return this.ops.getPaymentCollection(req.user, gymSlug);
+  }
+
   @Get('settings')
   @Roles(Role.GYM_ADMIN)
   settings(@Req() req: AuthedRequest, @Query('gymSlug') gymSlug: string) {
     return this.ops.settings(req.user, gymSlug);
+  }
+
+  @Patch('settings/payment-collection')
+  @Roles(Role.GYM_ADMIN)
+  updatePaymentCollection(
+    @Req() req: AuthedRequest,
+    @Query('gymSlug') gymSlug: string,
+    @Body() body: UpdatePaymentCollectionDto,
+  ) {
+    return this.ops.updatePaymentCollection(req.user, gymSlug, body);
   }
 }

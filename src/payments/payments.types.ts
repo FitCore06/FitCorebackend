@@ -10,6 +10,7 @@ export type PaymentDto = {
   method: string;
   status: PaymentStatus;
   at: string;
+  hasProof: boolean;
 };
 
 export type MemberReceiptDto = {
@@ -17,4 +18,14 @@ export type MemberReceiptDto = {
   title: string;
   amountInr: number;
   paidAt: string;
+};
+
+export type MemberPaymentItemDto = {
+  id: string;
+  title: string;
+  amountInr: number;
+  method: string;
+  status: PaymentStatus;
+  at: string;
+  hasProof: boolean;
 };
