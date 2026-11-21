@@ -24,6 +24,8 @@ import {
 import type { CreateSupplementSaleDto } from './dto/create-supplement-sale.dto.js';
 import type { UpdatePaymentCollectionDto } from './dto/update-payment-collection.dto.js';
 import { paymentCollectionFromTenant } from './payment-collection.util.js';
+import { AutomationService } from '../automation/automation.service.js';
+import { resolveMembershipExpiryRunParams } from '../automation/automation-run-params.js';
 import {
   formatSupplementBillMessage,
   sendSupplementBillPhoneStub,
@@ -35,6 +37,7 @@ export class GymOpsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly automation: AutomationService,
   ) {}
 
   private async tenantForAdmin(user: AuthUserPayload, gymSlug: string) {
@@ -185,6 +188,20 @@ export class GymOpsService {
       });
       return membership;
     });
+  }
+
+  async runMembershipExpiryAutomation(
+    user: AuthUserPayload,
+    gymSlug: string,
+    days?: string,
+  ) {
+    await this.tenantForAdmin(user, gymSlug);
+    const { slug, daysBefore } = resolveMembershipExpiryRunParams(
+      this.config,
+      gymSlug,
+      days,
+    );
+    return this.automation.runMembershipExpiryReminders(slug, daysBefore);
   }
 
   async runMembershipReminders(user: AuthUserPayload, gymSlug: string) {

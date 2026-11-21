@@ -65,7 +65,9 @@ export class DashboardService {
     if (!tenant) throw new NotFoundException('Gym not found');
 
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    today.setUTCHours(0, 0, 0, 0);
+    const horizon7 = new Date(today);
+    horizon7.setUTCDate(horizon7.getUTCDate() + 7);
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const [
       memberCount,
@@ -73,6 +75,8 @@ export class DashboardService {
       attendanceToday,
       paidMtd,
       pending,
+      pendingCount,
+      expiringMemberships,
       onFloor,
       onLeave,
       recentPayments,
@@ -95,6 +99,16 @@ export class DashboardService {
       this.prisma.gymPayment.aggregate({
         where: { gymId: tenant.id, status: 'pending' },
         _sum: { amountInr: true },
+      }),
+      this.prisma.gymPayment.count({
+        where: { gymId: tenant.id, status: 'pending' },
+      }),
+      this.prisma.memberMembership.count({
+        where: {
+          gymId: tenant.id,
+          status: { in: ['active', 'trial'] },
+          endsAt: { gte: today, lte: horizon7 },
+        },
       }),
       this.prisma.trainerProfile.count({
         where: { gymId: tenant.id, floorStatus: 'on-floor' },
@@ -121,6 +135,8 @@ export class DashboardService {
       attendanceToday,
       revenueMtdInr: paidMtd._sum.amountInr ?? 0,
       outstandingInr: pending._sum.amountInr ?? 0,
+      pendingPaymentsCount: pendingCount,
+      expiringMemberships7d: expiringMemberships,
       trainersOnFloor: onFloor,
       trainersOnLeave: onLeave,
       recentActivity: recentPayments.map((p) => ({

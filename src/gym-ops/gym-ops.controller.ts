@@ -90,6 +90,16 @@ export class GymOpsController {
     return this.ops.runMembershipReminders(req.user, gymSlug);
   }
 
+  @Post('memberships/expiry-automation/run')
+  @Roles(Role.GYM_ADMIN)
+  runMembershipExpiryAutomation(
+    @Req() req: AuthedRequest,
+    @Query('gymSlug') gymSlug: string,
+    @Query('days') days?: string,
+  ) {
+    return this.ops.runMembershipExpiryAutomation(req.user, gymSlug, days);
+  }
+
   @Get('trials')
   @Roles(Role.GYM_ADMIN)
   trials(@Req() req: AuthedRequest, @Query('gymSlug') gymSlug: string) {

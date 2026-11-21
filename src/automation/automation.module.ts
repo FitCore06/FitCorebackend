@@ -9,5 +9,6 @@ import { MembershipExpiryScheduler } from './membership-expiry.scheduler.js';
   imports: [NotificationsModule],
   controllers: [AutomationController],
   providers: [AutomationService, AutomationSecretGuard, MembershipExpiryScheduler],
+  exports: [AutomationService],
 })
 export class AutomationModule {}
