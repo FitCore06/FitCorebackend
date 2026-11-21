@@ -76,6 +76,19 @@ export class MembersService {
       assignments.map((a) => [a.memberUserId, a]),
     );
 
+    const recentCheckIns = await this.prisma.memberCheckIn.findMany({
+      where: { gymId: tenant.id },
+      orderBy: { checkInAt: 'desc' },
+      select: { memberUserId: true, branchName: true },
+      take: 500,
+    });
+    const branchByMember = new Map<string, string>();
+    for (const visit of recentCheckIns) {
+      if (!branchByMember.has(visit.memberUserId)) {
+        branchByMember.set(visit.memberUserId, visit.branchName);
+      }
+    }
+
     return roles.map((r) => {
       const assignment = byMemberId.get(r.userId);
       return {
@@ -90,6 +103,7 @@ export class MembersService {
         plan: assignment?.planLabel ?? '—',
         trainerName: assignment?.trainer.name ?? null,
         assignmentId: assignment?.id ?? null,
+        branchName: branchByMember.get(r.userId) ?? null,
       };
     });
   }

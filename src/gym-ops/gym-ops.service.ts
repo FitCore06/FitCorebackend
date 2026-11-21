@@ -1283,6 +1283,10 @@ export class GymOpsService {
       whatsappStatus: row.whatsappStatus,
       whatsappPreview: row.whatsappMessage?.split('\n\n[')[0] ?? null,
       whatsappSentAt: row.whatsappSentAt?.toISOString() ?? null,
+      billDeliveryPhone: row.whatsappPhone,
+      billDeliveryStatus: row.whatsappStatus,
+      billPreview: row.whatsappMessage?.split('\n\n[')[0] ?? null,
+      billSentAt: row.whatsappSentAt?.toISOString() ?? null,
       createdAt: row.createdAt.toISOString(),
       recordedBy: row.createdBy.name,
     };

@@ -8,4 +8,5 @@ export type GymMemberDto = {
   plan: string;
   trainerName: string | null;
   assignmentId: string | null;
+  branchName: string | null;
 };

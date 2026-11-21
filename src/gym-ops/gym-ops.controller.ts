@@ -310,6 +310,16 @@ export class GymOpsController {
     return this.ops.resendSupplementBillWhatsApp(req.user, gymSlug, id);
   }
 
+  @Post('supplement-sales/:id/resend-bill')
+  @Roles(Role.GYM_ADMIN)
+  resendSupplementBillSms(
+    @Req() req: AuthedRequest,
+    @Param('id') id: string,
+    @Query('gymSlug') gymSlug: string,
+  ) {
+    return this.ops.resendSupplementBillWhatsApp(req.user, gymSlug, id);
+  }
+
   @Get('branches')
   @Roles(Role.GYM_ADMIN)
   branches(@Req() req: AuthedRequest, @Query('gymSlug') gymSlug: string) {

@@ -2,7 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { json, urlencoded } from 'express';
+import express, { json, urlencoded } from 'express';
 import { AppModule } from './app.module.js';
 
 function normalizeSupabaseRuntimePool() {
@@ -27,6 +27,10 @@ async function bootstrap() {
   normalizeSupabaseRuntimePool();
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  app.use(
+    '/api/v1/payments/razorpay/webhook',
+    express.raw({ type: 'application/json', limit: '1mb' }),
+  );
   app.use(json({ limit: '10mb' }));
   app.use(urlencoded({ extended: true, limit: '10mb' }));
   const config = app.get(ConfigService);

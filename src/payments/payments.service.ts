@@ -9,6 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Role, type AuthUserPayload } from '../auth/auth.types.js';
 import { gymRole } from '../auth/guards/roles.guard.js';
+import { renewMembershipAfterPayment } from '../common/membership-renew-after-payment.js';
 import { validateBase64Image } from '../common/image-upload.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { MemberPaymentRequestDto } from './dto/member-payment-request.dto.js';
@@ -403,6 +404,10 @@ export class PaymentsService {
     const memberRole = user.roles.find((r) => r.role === Role.MEMBER);
     if (!memberRole) throw new ForbiddenException('Members only');
 
+    const keyId = this.config.get<string>('RAZORPAY_KEY_ID')?.trim();
+    const keySecret = this.config.get<string>('RAZORPAY_KEY_SECRET')?.trim();
+    const providerConfigured = Boolean(keyId && keySecret);
+
     const row = await this.prisma.gymPayment.create({
       data: {
         gymId: memberRole.gymId,
@@ -414,26 +419,252 @@ export class PaymentsService {
       },
     });
 
-    // This creates only a local pending checkout intent. No provider order or charge
-    // exists until an approved Razorpay transport integration is configured.
-    const orderId = `checkout_intent_${randomBytes(8).toString('hex')}`;
-    const keyId = this.config.get<string>('RAZORPAY_KEY_ID') ?? 'rzp_test_fitcore';
-    const providerConfigured = Boolean(
-      this.config.get<string>('RAZORPAY_KEY_ID') && this.config.get<string>('RAZORPAY_KEY_SECRET'),
-    );
+    if (!providerConfigured) {
+      const orderId = `checkout_intent_${randomBytes(8).toString('hex')}`;
+      return {
+        orderId,
+        amount: input.amountInr * 100,
+        currency: 'INR',
+        keyId: keyId ?? 'rzp_test_fitcore',
+        paymentId: row.id,
+        demo: true,
+        localCheckoutIntent: true,
+        providerStatus: 'blocked_credentials_missing',
+        note: 'Local pending checkout intent only. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET on API.',
+      };
+    }
+
+    const receipt = `fc_${row.id.replace(/-/g, '').slice(0, 12)}`;
+    const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+    const orderRes = await fetch('https://api.razorpay.com/v1/orders', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        amount: input.amountInr * 100,
+        currency: 'INR',
+        receipt,
+        notes: {
+          fitcorePaymentId: row.id,
+          memberUserId: user.id,
+          gymId: memberRole.gymId,
+        },
+      }),
+    });
+    if (!orderRes.ok) {
+      const detail = await orderRes.text();
+      await this.prisma.gymPayment.delete({ where: { id: row.id } });
+      throw new BadRequestException(`Razorpay order failed: ${detail.slice(0, 200)}`);
+    }
+    const orderJson = (await orderRes.json()) as { id: string };
+    await this.prisma.gymPayment.update({
+      where: { id: row.id },
+      data: { providerOrderId: orderJson.id },
+    });
 
     return {
-      orderId,
+      orderId: orderJson.id,
       amount: input.amountInr * 100,
       currency: 'INR',
       keyId,
       paymentId: row.id,
-      demo: true,
-      localCheckoutIntent: true,
-      providerStatus: providerConfigured
-        ? 'blocked_provider_transport_not_configured'
-        : 'blocked_credentials_missing',
-      note: 'Local pending checkout intent only. No Razorpay order, charge, refund, or settlement has been created.',
+      demo: false,
+      note: 'Open Razorpay checkout; webhook marks paid on capture.',
+    };
+  }
+
+  async handleRazorpayWebhook(rawBody: string, signature: string) {
+    const secret =
+      this.config.get<string>('RAZORPAY_WEBHOOK_SECRET')?.trim() ??
+      this.config.get<string>('RAZORPAY_KEY_SECRET')?.trim();
+    if (!secret) throw new BadRequestException('Razorpay webhook secret not configured');
+    if (!this.verifyRazorpayWebhookSignature(rawBody, signature, secret)) {
+      throw new BadRequestException('Invalid webhook signature');
+    }
+
+    let payload: {
+      event?: string;
+      payload?: {
+        payment?: { entity?: { order_id?: string; id?: string; status?: string } };
+      };
+    };
+    try {
+      payload = JSON.parse(rawBody) as typeof payload;
+    } catch {
+      throw new BadRequestException('Invalid webhook JSON');
+    }
+
+    const event = payload.event ?? '';
+    if (event !== 'payment.captured' && event !== 'order.paid') {
+      return { ok: true, ignored: true, event };
+    }
+
+    const entity = payload.payload?.payment?.entity;
+    const orderId = entity?.order_id?.trim();
+    if (!orderId) return { ok: true, ignored: true, reason: 'no_order_id' };
+
+    const payment = await this.prisma.gymPayment.findFirst({
+      where: { providerOrderId: orderId },
+      include: { member: true, tenant: true },
+    });
+    if (!payment) return { ok: true, ignored: true, reason: 'payment_not_found' };
+    if (payment.status === 'paid') return { ok: true, idempotent: true, paymentId: payment.id };
+
+    await this.markRazorpayPaymentPaid(payment, entity?.id ?? orderId);
+    const renewal = await renewMembershipAfterPayment(
+      this.prisma,
+      payment.gymId,
+      payment.memberUserId,
+      payment.title,
+    );
+
+    return {
+      ok: true,
+      paymentId: payment.id,
+      status: 'paid',
+      membershipRenewed: renewal.renewed,
+    };
+  }
+
+  verifyRazorpayPaymentSignature(
+    orderId: string,
+    paymentId: string,
+    signature: string,
+    secret: string,
+  ) {
+    const expected = createHmac('sha256', secret)
+      .update(`${orderId}|${paymentId}`)
+      .digest('hex');
+    if (signature.length !== expected.length) return false;
+    return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  }
+
+  async verifyRazorpayCheckout(
+    user: AuthUserPayload,
+    dto: {
+      paymentId: string;
+      razorpayOrderId: string;
+      razorpayPaymentId: string;
+      razorpaySignature: string;
+    },
+  ) {
+    const memberRole = user.roles.find((r) => r.role === Role.MEMBER);
+    if (!memberRole) throw new ForbiddenException('Members only');
+
+    const secret = this.config.get<string>('RAZORPAY_KEY_SECRET')?.trim();
+    if (!secret) throw new BadRequestException('Razorpay not configured');
+
+    const row = await this.prisma.gymPayment.findFirst({
+      where: {
+        id: dto.paymentId,
+        gymId: memberRole.gymId,
+        memberUserId: user.id,
+        providerOrderId: dto.razorpayOrderId,
+      },
+    });
+    if (!row) throw new NotFoundException('Payment not found');
+    if (row.status === 'paid') {
+      return { ok: true, idempotent: true, paymentId: row.id };
+    }
+
+    const valid = this.verifyRazorpayPaymentSignature(
+      dto.razorpayOrderId,
+      dto.razorpayPaymentId,
+      dto.razorpaySignature,
+      secret,
+    );
+    if (!valid) throw new BadRequestException('Invalid Razorpay signature');
+
+    await this.markRazorpayPaymentPaid(row, dto.razorpayPaymentId);
+    const renewal = await renewMembershipAfterPayment(
+      this.prisma,
+      row.gymId,
+      row.memberUserId,
+      row.title,
+    );
+
+    return {
+      ok: true,
+      paymentId: row.id,
+      status: 'paid',
+      membershipRenewed: renewal.renewed,
+    };
+  }
+
+  private async markRazorpayPaymentPaid(
+    payment: {
+      id: string;
+      gymId: string;
+      memberUserId: string;
+      amountInr: number;
+    },
+    providerRef: string,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.gymPayment.update({
+        where: { id: payment.id },
+        data: { status: 'paid' },
+      });
+      await tx.paymentLedgerEntry.create({
+        data: {
+          gymId: payment.gymId,
+          paymentId: payment.id,
+          kind: 'payment',
+          amountInr: payment.amountInr,
+          eventKey: `razorpay:${providerRef}`,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          gymId: payment.gymId,
+          userId: payment.memberUserId,
+          action: 'payment.razorpay_captured',
+          resource: payment.id,
+          meta: { providerRef },
+        },
+      });
+    });
+  }
+
+  async downloadReceipt(user: AuthUserPayload, paymentId: string) {
+    const row = await this.prisma.gymPayment.findUnique({
+      where: { id: paymentId },
+      include: { member: true, tenant: true },
+    });
+    if (!row || row.status !== 'paid') throw new NotFoundException('Receipt not found');
+
+    const memberRole = user.roles.find((r) => r.role === Role.MEMBER);
+    const admin = gymRole(user, Role.GYM_ADMIN, row.tenant.slug);
+    const memberOk = memberRole?.gymId === row.gymId && user.id === row.memberUserId;
+    if (!admin && !memberOk) throw new ForbiddenException('Not allowed');
+
+    const issued = row.updatedAt.toISOString().slice(0, 10);
+    const lines = [
+      `FitCore payment receipt`,
+      `Gym: ${row.tenant.name}`,
+      `Receipt ID: ${row.id}`,
+      `Date: ${issued}`,
+      ``,
+      `Member: ${row.member.name}`,
+      `Email: ${row.member.email}`,
+      ``,
+      `Description: ${row.title}`,
+      `Amount: INR ${row.amountInr}`,
+      `Method: ${row.method}`,
+      `Status: paid`,
+      ``,
+      `This is a computer-generated receipt for gym records.`,
+    ];
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt ${row.id.slice(0, 8)}</title></head><body style="font-family:system-ui;max-width:480px;margin:2rem auto;padding:1rem"><h1>Payment receipt</h1><p><strong>${row.tenant.name}</strong></p><table style="width:100%;font-size:14px;line-height:1.6"><tr><td>Receipt</td><td>${row.id}</td></tr><tr><td>Date</td><td>${issued}</td></tr><tr><td>Member</td><td>${row.member.name}</td></tr><tr><td>Description</td><td>${row.title}</td></tr><tr><td>Amount</td><td>₹${row.amountInr.toLocaleString('en-IN')}</td></tr><tr><td>Method</td><td>${row.method}</td></tr></table><p style="font-size:12px;color:#666">Computer-generated receipt for gym records.</p></body></html>`;
+
+    return {
+      filename: `receipt-${row.id.slice(0, 8)}.html`,
+      mimeType: 'text/html; charset=utf-8',
+      body: html,
+      textBody: lines.join('\n'),
     };
   }
 }

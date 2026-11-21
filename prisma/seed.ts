@@ -287,6 +287,45 @@ async function main() {
   }
 
   const ownerUser = usersByEmail['owner@gym.test'];
+
+  async function ensureDemoExpiryMembership(gymId: string, memberId: string) {
+    const plan =
+      (await prisma.gymMembershipPlan.findFirst({
+        where: { gymId, name: 'Monthly Flex' },
+      })) ??
+      (await prisma.gymMembershipPlan.findFirst({ where: { gymId } }));
+    if (!plan) return;
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const endsAt = new Date(today);
+    endsAt.setUTCDate(endsAt.getUTCDate() + 7);
+
+    const existing = await prisma.memberMembership.findFirst({
+      where: { gymId, memberUserId: memberId, status: 'active', endsAt },
+    });
+    if (existing) return;
+
+    await prisma.memberMembership.updateMany({
+      where: { gymId, memberUserId: memberId, status: { in: ['active', 'trial'] } },
+      data: { status: 'expired' },
+    });
+
+    const startsAt = new Date(endsAt);
+    startsAt.setUTCDate(startsAt.getUTCDate() - 30);
+
+    await prisma.memberMembership.create({
+      data: {
+        gymId,
+        memberUserId: memberId,
+        planId: plan.id,
+        status: 'active',
+        startsAt,
+        endsAt,
+      },
+    });
+  }
+
   const catalogCount = await prisma.gymMembershipPlan.count({
     where: { gymId: tenant.id },
   });
@@ -577,6 +616,10 @@ async function main() {
         meals: d.meals,
       },
     });
+  }
+
+  if (memberUser) {
+    await ensureDemoExpiryMembership(tenant.id, memberUser.id);
   }
 
   const ownerInviteToken =

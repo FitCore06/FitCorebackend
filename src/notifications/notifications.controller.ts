@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import type { AuthUserPayload } from '../auth/auth.types.js';
@@ -31,6 +41,17 @@ export class NotificationsController {
       dto.token,
       dto.platform,
     );
+  }
+
+  @Post('broadcast')
+  @Roles(Role.GYM_ADMIN)
+  broadcast(
+    @Req() req: AuthedRequest,
+    @Query('gymSlug') gymSlug: string,
+    @Body() dto: BroadcastNotificationDto,
+  ) {
+    if (!gymSlug?.trim()) throw new BadRequestException('gymSlug required');
+    return this.notifications.broadcastAnnouncement(req.user, gymSlug.trim(), dto);
   }
 
   @Patch(':id/read')

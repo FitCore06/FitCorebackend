@@ -16,6 +16,7 @@ services:
     plan: free
     region: singapore
     buildCommand: npm run render:build
+    preDeployCommand: npm run render:migrate
     startCommand: npm run start:prod
     healthCheckPath: /api/v1/health
     envVars:
@@ -28,4 +29,20 @@ services:
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: CORS_ORIGINS
+        sync: false
+      - key: FITCORE_MEMBERSHIP_EXPIRY_CRON_ENABLED
+        value: true
+      - key: FITCORE_GYM_SLUG
+        sync: false
+      - key: FITCORE_EXPIRY_NOTIFY_DAYS
+        value: 7,3,1,0
+      - key: FITCORE_AUTOMATION_SECRET
+        sync: false
+      - key: EXPO_ACCESS_TOKEN
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
         sync: false

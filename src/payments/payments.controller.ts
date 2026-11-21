@@ -18,6 +18,7 @@ import { CreatePaymentDto } from './dto/create-payment.dto.js';
 import { CreateRefundDto } from './dto/create-refund.dto.js';
 import { MemberPaymentRequestDto } from './dto/member-payment-request.dto.js';
 import { RazorpayOrderDto } from './dto/razorpay-order.dto.js';
+import { RazorpayVerifyDto } from './dto/razorpay-verify.dto.js';
 import { UpdatePaymentStatusDto } from './dto/update-payment-status.dto.js';
 import { PaymentsService } from './payments.service.js';
 
@@ -51,6 +52,13 @@ export class PaymentsController {
     return this.payments.listMyPaymentItems(req.user);
   }
 
+  @Get('me/receipt/:id/download')
+  @Roles(Role.MEMBER, Role.GYM_ADMIN)
+  @ApiOperation({ summary: 'Download plain-text payment receipt' })
+  downloadReceipt(@Req() req: AuthedRequest, @Param('id') id: string) {
+    return this.payments.downloadReceipt(req.user, id);
+  }
+
   @Post('me/request')
   @Roles(Role.MEMBER)
   @ApiOperation({ summary: 'Submit UPI/bank payment for owner approval' })
@@ -75,6 +83,13 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Create Razorpay order (test or live keys)' })
   razorpayOrder(@Req() req: AuthedRequest, @Body() dto: RazorpayOrderDto) {
     return this.payments.createRazorpayOrder(req.user, dto);
+  }
+
+  @Post('razorpay/verify')
+  @Roles(Role.MEMBER)
+  @ApiOperation({ summary: 'Verify Razorpay checkout signature and mark paid' })
+  verifyRazorpay(@Req() req: AuthedRequest, @Body() dto: RazorpayVerifyDto) {
+    return this.payments.verifyRazorpayCheckout(req.user, dto);
   }
 
   @Post(':id/refunds')
