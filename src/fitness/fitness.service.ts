@@ -787,6 +787,35 @@ export class FitnessService {
     return this.memberDietTemplate(user.id, memberRole.gymId, user.email);
   }
 
+  async workoutSetActivityByDate(
+    user: AuthUserPayload,
+    from?: string,
+    to?: string,
+  ): Promise<{ date: string; setCount: number }[]> {
+    const memberRole = user.roles.find((r) => r.role === Role.MEMBER);
+    if (!memberRole) throw new ForbiddenException('Members only');
+    const toDate = to?.trim() || this.todayLogDate();
+    const fallback = new Date();
+    fallback.setDate(fallback.getDate() - 364);
+    const fromDate =
+      from?.trim() ||
+      `${fallback.getFullYear()}-${String(fallback.getMonth() + 1).padStart(2, '0')}-${String(fallback.getDate()).padStart(2, '0')}`;
+
+    const rows = await this.prisma.workoutSetLog.groupBy({
+      by: ['logDate'],
+      where: {
+        memberUserId: user.id,
+        gymId: memberRole.gymId,
+        logDate: { gte: fromDate, lte: toDate },
+      },
+      _count: { _all: true },
+    });
+
+    return rows
+      .map((r) => ({ date: r.logDate, setCount: r._count._all }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
   async listWorkoutSetLogs(
     user: AuthUserPayload,
     dayId: string,

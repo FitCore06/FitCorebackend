@@ -379,4 +379,82 @@ export class MembersService {
       },
     };
   }
+
+  async listMyBodyWeight(
+    user: AuthUserPayload,
+    from?: string,
+    to?: string,
+  ) {
+    const memberRole = user.roles.find((r) => r.role === Role.MEMBER);
+    if (!memberRole) throw new ForbiddenException('Members only');
+
+    const toDate = to?.trim() || new Date().toISOString().slice(0, 10);
+    const start = new Date();
+    start.setDate(start.getDate() - 365);
+    const fromDate = from?.trim() || start.toISOString().slice(0, 10);
+
+    const rows = await this.prisma.memberBodyWeightLog.findMany({
+      where: {
+        memberUserId: user.id,
+        gymId: memberRole.gymId,
+        logDate: { gte: fromDate, lte: toDate },
+      },
+      orderBy: { logDate: 'asc' },
+    });
+
+    return rows.map((r) => ({
+      id: r.id,
+      logDate: r.logDate,
+      weightKg: r.weightKg,
+      targetKg: r.targetKg,
+    }));
+  }
+
+  async upsertMyBodyWeight(
+    user: AuthUserPayload,
+    input: { logDate: string; weightKg: number; targetKg?: number },
+  ) {
+    const memberRole = user.roles.find((r) => r.role === Role.MEMBER);
+    if (!memberRole) throw new ForbiddenException('Members only');
+    const logDate = input.logDate?.trim();
+    if (!logDate || !/^\d{4}-\d{2}-\d{2}$/.test(logDate)) {
+      throw new BadRequestException('Invalid logDate');
+    }
+    const weightKg = Number(input.weightKg);
+    if (!Number.isFinite(weightKg) || weightKg < 30 || weightKg > 300) {
+      throw new BadRequestException('weightKg must be between 30 and 300');
+    }
+    const targetKg =
+      input.targetKg === undefined || input.targetKg === null
+        ? undefined
+        : Number(input.targetKg);
+
+    const row = await this.prisma.memberBodyWeightLog.upsert({
+      where: {
+        memberUserId_gymId_logDate: {
+          memberUserId: user.id,
+          gymId: memberRole.gymId,
+          logDate,
+        },
+      },
+      create: {
+        gymId: memberRole.gymId,
+        memberUserId: user.id,
+        logDate,
+        weightKg,
+        targetKg: targetKg ?? null,
+      },
+      update: {
+        weightKg,
+        ...(targetKg !== undefined ? { targetKg } : {}),
+      },
+    });
+
+    return {
+      id: row.id,
+      logDate: row.logDate,
+      weightKg: row.weightKg,
+      targetKg: row.targetKg,
+    };
+  }
 }

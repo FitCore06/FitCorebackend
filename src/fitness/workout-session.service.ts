@@ -8,6 +8,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { Role, type AuthUserPayload } from '../auth/auth.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { FitnessService } from './fitness.service.js';
 import {
   CancelWorkoutSessionDto,
   CompleteWorkoutSessionSetDto,
@@ -18,7 +19,10 @@ import {
 
 @Injectable()
 export class WorkoutSessionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly fitness: FitnessService,
+  ) {}
 
   private async trainerReadScope(
     trainerUserId: string,
@@ -228,6 +232,100 @@ export class WorkoutSessionService {
     });
   }
 
+  async activityCalendar(
+    user: AuthUserPayload,
+    from?: string,
+    to?: string,
+  ): Promise<
+    { date: string; minutes: number; volumeKg: number; setCount: number }[]
+  > {
+    const memberRole = user.roles.find((r) => r.role === Role.MEMBER);
+    if (!memberRole) throw new ForbiddenException('Members only');
+    const toDate = to?.trim() || new Date().toISOString().slice(0, 10);
+    const fallback = new Date();
+    fallback.setDate(fallback.getDate() - 364);
+    const fromDate =
+      from?.trim() ||
+      `${fallback.getFullYear()}-${String(fallback.getMonth() + 1).padStart(2, '0')}-${String(fallback.getDate()).padStart(2, '0')}`;
+
+    const completedAt: Prisma.DateTimeFilter = {
+      gte: new Date(`${fromDate}T00:00:00.000Z`),
+      lte: new Date(`${toDate}T23:59:59.999Z`),
+    };
+
+    const [sessions, logGroups] = await Promise.all([
+      this.prisma.workoutSession.findMany({
+        where: {
+          gymId: memberRole.gymId,
+          memberUserId: user.id,
+          status: 'COMPLETED',
+          completedAt,
+        },
+        include: {
+          exercises: {
+            include: { sets: { where: { isCompleted: true } } },
+          },
+        },
+      }),
+      this.prisma.workoutSetLog.groupBy({
+        by: ['logDate'],
+        where: {
+          memberUserId: user.id,
+          gymId: memberRole.gymId,
+          logDate: { gte: fromDate, lte: toDate },
+        },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const byDate = new Map<
+      string,
+      { minutes: number; volumeKg: number; setCount: number }
+    >();
+
+    for (const s of sessions) {
+      if (!s.completedAt) continue;
+      const date = s.completedAt.toISOString().slice(0, 10);
+      const ms =
+        s.completedAt.getTime() -
+        s.startedAt.getTime() -
+        s.accumulatedPausedSeconds * 1000;
+      const minutes = Math.max(1, Math.round(ms / 60_000));
+      let volumeKg = 0;
+      let setCount = 0;
+      for (const ex of s.exercises) {
+        for (const set of ex.sets) {
+          setCount += 1;
+          const w = set.actualWeightKg ?? 0;
+          const r = set.actualReps ?? 0;
+          volumeKg += w * r;
+        }
+      }
+      const prev = byDate.get(date) ?? { minutes: 0, volumeKg: 0, setCount: 0 };
+      byDate.set(date, {
+        minutes: prev.minutes + minutes,
+        volumeKg: Math.round((prev.volumeKg + volumeKg) * 10) / 10,
+        setCount: prev.setCount + setCount,
+      });
+    }
+
+    for (const row of logGroups) {
+      const prev = byDate.get(row.logDate) ?? {
+        minutes: 0,
+        volumeKg: 0,
+        setCount: 0,
+      };
+      byDate.set(row.logDate, {
+        ...prev,
+        setCount: Math.max(prev.setCount, row._count._all),
+      });
+    }
+
+    return [...byDate.entries()]
+      .map(([date, v]) => ({ date, ...v }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
   async exercisePerformance(user: AuthUserPayload, exerciseId: string, memberUserId?: string, gymSlug?: string) {
     const { gymId, role } = this.resolveGym(user, gymSlug);
     let targetMemberId = user.id;
@@ -343,6 +441,7 @@ export class WorkoutSessionService {
         },
       });
 
+      let seeded = 0;
       // Populate snapshot exercises & initial sets from the assigned plan day
       if (targetDay && targetDay.exercises?.length) {
         for (let exIndex = 0; exIndex < targetDay.exercises.length; exIndex++) {
@@ -373,6 +472,73 @@ export class WorkoutSessionService {
                 setNumber: s,
                 targetReps: planEx.targetReps ?? '10-12',
                 targetWeightKg: planEx.targetWeightKg,
+                isCompleted: false,
+              },
+            });
+          }
+          seeded += 1;
+        }
+      }
+
+      if (seeded === 0) {
+        const weekly = await this.fitness.resolveWeeklyPlanForMember(
+          gymId,
+          user.id,
+          user.email,
+        );
+        const dow =
+          dto.dayOfWeek?.toLowerCase() ??
+          ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][
+            new Date().getDay()
+          ];
+        const weekDay = weekly.days?.find(
+          (d: { dayId?: string }) => d.dayId === dow,
+        );
+        const planExercises =
+          weekDay && !weekDay.restDay && Array.isArray(weekDay.exercises)
+            ? weekDay.exercises.filter(
+                (e: { name?: string }) => (e.name ?? '').trim().length > 0,
+              )
+            : [];
+
+        await tx.workoutSession.update({
+          where: { id: session.id },
+          data: {
+            planDayId: dow,
+            dayTitle:
+              weekDay?.title ?? dto.dayTitle ?? session.dayTitle ?? 'Workout',
+          },
+        });
+
+        for (let exIndex = 0; exIndex < planExercises.length; exIndex++) {
+          const planEx = planExercises[exIndex] as {
+            id: string;
+            name: string;
+            sets: number;
+            reps: string;
+            restSec?: number;
+          };
+          const sessionEx = await tx.workoutSessionExercise.create({
+            data: {
+              sessionId: session.id,
+              exerciseId: planEx.id,
+              exerciseNameSnapshot: planEx.name,
+              categorySnapshot: 'strength',
+              primaryMuscleSnapshot: 'other',
+              equipmentSnapshot: 'other',
+              sortOrder: exIndex,
+              targetSets: Math.max(1, planEx.sets ?? 3),
+              targetReps: String(planEx.reps ?? '10'),
+              restSeconds: planEx.restSec ?? 90,
+            },
+          });
+          const totalSets = Math.max(1, planEx.sets ?? 3);
+          for (let s = 1; s <= totalSets; s++) {
+            await tx.workoutSessionSet.create({
+              data: {
+                sessionExerciseId: sessionEx.id,
+                setNumber: s,
+                targetReps: String(planEx.reps ?? '10'),
                 isCompleted: false,
               },
             });
@@ -626,7 +792,11 @@ export class WorkoutSessionService {
 
       // Safe integration with legacy WorkoutSetLog table (preserving historical logs)
       const dateStr = now.toISOString().slice(0, 10);
-      const dayId = session.planDayId ?? 'session-day';
+      const dayId =
+        session.planDayId &&
+        /^(sun|mon|tue|wed|thu|fri|sat)$/i.test(session.planDayId)
+          ? session.planDayId.toLowerCase()
+          : 'session-day';
 
       for (const ex of session.exercises) {
         if (ex.exerciseId) {

@@ -54,7 +54,9 @@ describe('WorkoutSessionService Security & Lifecycle', () => {
     $transaction: vi.fn((fn) => fn(mockPrisma)),
   } as any;
 
-  const service = new WorkoutSessionService(mockPrisma);
+  const service = new WorkoutSessionService(mockPrisma, {
+    resolveWeeklyPlanForMember: async () => ({ days: [] }),
+  } as any);
 
   it('rejects duplicate concurrent session start', async () => {
     mockPrisma.workoutSession.findFirst.mockResolvedValue({

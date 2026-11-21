@@ -76,7 +76,9 @@ describe('WorkoutHistory & PersonalRecords Security & Isolation', () => {
     vi.clearAllMocks();
     mockPrisma.memberTrainerAssignment.findFirst.mockResolvedValue({ id: 'assignment-a' });
     mockPrisma.userBranchAccess.findMany.mockResolvedValue([]);
-    service = new WorkoutSessionService(mockPrisma as any);
+    service = new WorkoutSessionService(mockPrisma as any, {
+      resolveWeeklyPlanForMember: async () => ({ days: [] }),
+    } as any);
   });
 
   describe('completedHistory', () => {

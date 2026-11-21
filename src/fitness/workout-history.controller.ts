@@ -14,6 +14,18 @@ type AuthedRequest = Request & { user: AuthUserPayload };
 export class WorkoutHistoryController {
   constructor(private readonly sessions: WorkoutSessionService) {}
 
+  @Get('activity-calendar')
+  @ApiOperation({
+    summary: 'Per-day training time, volume, and sets (sessions + logs)',
+  })
+  activityCalendar(
+    @Req() req: AuthedRequest,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.sessions.activityCalendar(req.user, from, to);
+  }
+
   @Get()
   @ApiOperation({ summary: 'Completed workout history for member or trainer clients' })
   list(@Req() req: AuthedRequest, @Query() query: any) {

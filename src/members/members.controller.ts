@@ -61,6 +61,27 @@ export class MembersController {
     );
   }
 
+  @Get('me/body-weight')
+  @Roles(Role.MEMBER)
+  @ApiOperation({ summary: 'Body weight log history for progress charts' })
+  listMyBodyWeight(
+    @Req() req: AuthedRequest,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.members.listMyBodyWeight(req.user, from, to);
+  }
+
+  @Post('me/body-weight')
+  @Roles(Role.MEMBER)
+  @ApiOperation({ summary: 'Log or update body weight for a date' })
+  logMyBodyWeight(
+    @Req() req: AuthedRequest,
+    @Body() body: { logDate: string; weightKg: number; targetKg?: number },
+  ) {
+    return this.members.upsertMyBodyWeight(req.user, body);
+  }
+
   @Get('me/profile')
   @Roles(Role.MEMBER)
   myProfile(@Req() req: AuthedRequest, @Query('gymSlug') gymSlug: string) {

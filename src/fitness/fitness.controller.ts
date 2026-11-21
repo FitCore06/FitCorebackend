@@ -141,6 +141,16 @@ export class FitnessController {
     return this.fitness.myDietPlan(req.user);
   }
 
+  @Get('logs/workout/activity')
+  @Roles(Role.MEMBER)
+  workoutActivity(
+    @Req() req: AuthedRequest,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.fitness.workoutSetActivityByDate(req.user, from, to);
+  }
+
   @Get('logs/workout')
   @Roles(Role.MEMBER)
   workoutLogs(
