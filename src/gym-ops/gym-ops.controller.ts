@@ -206,7 +206,7 @@ export class GymOpsController {
   @Get('automation')
   @Roles(Role.GYM_ADMIN)
   automation(@Req() req: AuthedRequest, @Query('gymSlug') gymSlug: string) {
-    return this.ops.automation(req.user, gymSlug);
+    return this.ops.listAutomationRules(req.user, gymSlug);
   }
 
   @Patch('automation/:id/toggle')

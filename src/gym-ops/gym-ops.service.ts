@@ -37,7 +37,7 @@ export class GymOpsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
-    private readonly automation: AutomationService,
+    private readonly automationService: AutomationService,
   ) {}
 
   private async tenantForAdmin(user: AuthUserPayload, gymSlug: string) {
@@ -201,7 +201,7 @@ export class GymOpsService {
       gymSlug,
       days,
     );
-    return this.automation.runMembershipExpiryReminders(slug, daysBefore);
+    return this.automationService.runMembershipExpiryReminders(slug, daysBefore);
   }
 
   async runMembershipReminders(user: AuthUserPayload, gymSlug: string) {
@@ -623,7 +623,7 @@ export class GymOpsService {
     });
   }
 
-  async automation(user: AuthUserPayload, gymSlug: string) {
+  async listAutomationRules(user: AuthUserPayload, gymSlug: string) {
     const tenant = await this.tenantForAdmin(user, gymSlug);
     return this.prisma.gymAutomationRule.findMany({
       where: { gymId: tenant.id },
