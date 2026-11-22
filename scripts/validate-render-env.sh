@@ -69,4 +69,16 @@ elif [ "${DEV_AUTH_STUB}" != "false" ]; then
   fail "DEV_AUTH_STUB must be false on Render (got: ${DEV_AUTH_STUB})"
 fi
 
+cors="$(trim "${CORS_ORIGINS:-}")"
+if [ -z "$cors" ]; then
+  echo "WARN: CORS_ORIGINS is empty — browsers will only allow http://localhost:3000 (see main.ts default)."
+elif printf '%s' "$cors" | grep -qv 'vercel.app'; then
+  echo "WARN: CORS_ORIGINS has no *.vercel.app entry — member/admin web on Vercel will fail login preflight."
+fi
+
+app_url="$(trim "${APP_PUBLIC_URL:-}")"
+if [ -n "$app_url" ]; then
+  echo "NOTE: APP_PUBLIC_URL=$app_url is also merged into CORS allowlist at runtime."
+fi
+
 echo "OK: Render database env looks valid."

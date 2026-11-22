@@ -23,6 +23,22 @@ function normalizeSupabaseRuntimePool() {
   }
 }
 
+function corsAllowedOrigins(config: ConfigService): string[] {
+  const listed =
+    config.get<string>('CORS_ORIGINS') ?? 'http://localhost:3000';
+  const appPublic = config.get<string>('APP_PUBLIC_URL')?.trim();
+  const origins = new Set(
+    listed
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter((origin) => origin.length > 0),
+  );
+  if (appPublic) {
+    origins.add(appPublic);
+  }
+  return [...origins];
+}
+
 async function bootstrap() {
   normalizeSupabaseRuntimePool();
   const app = await NestFactory.create(AppModule, { bodyParser: false });
@@ -44,11 +60,11 @@ async function bootstrap() {
     }),
   );
 
-  const corsOrigins =
-    config.get<string>('CORS_ORIGINS') ?? 'http://localhost:3000';
   app.enableCors({
-    origin: corsOrigins.split(',').map((o) => o.trim()),
+    origin: corsAllowedOrigins(config),
     credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   });
 
   const swaggerConfig = new DocumentBuilder()
