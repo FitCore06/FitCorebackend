@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import type { AuthUserPayload } from '../auth/auth.types.js';
@@ -17,8 +17,10 @@ export class ScheduleController {
 
   @Get('me')
   @Roles(Role.TRAINER)
-  mySchedule(@Req() req: AuthedRequest) {
-    return this.schedule.mySchedule(req.user);
+  mySchedule(@Req() req: AuthedRequest, @Query('days') days?: string) {
+    const parsed = days ? Number.parseInt(days, 10) : 3;
+    const dayCount = Number.isFinite(parsed) ? parsed : 3;
+    return this.schedule.mySchedule(req.user, dayCount);
   }
 
   @Patch('blocks/:id/outcome')

@@ -14,7 +14,9 @@ export type AssignmentDto = {
   gymId: string;
   gymSlug: string;
   active: boolean;
+  trainerPlanId: string | null;
   planLabel: string;
+  planEndsAt: string | null;
   membershipStatus: string;
   membershipNote: string | null;
   nextSessionNote: string | null;
@@ -57,7 +59,11 @@ export class AssignmentsService {
       gymId: row.gymId,
       gymSlug: row.tenant.slug,
       active: row.active,
+      trainerPlanId: row.trainerPlanId,
       planLabel: row.planLabel,
+      planEndsAt: row.planEndsAt
+        ? row.planEndsAt.toISOString().slice(0, 10)
+        : null,
       membershipStatus: row.membershipStatus,
       membershipNote: row.membershipNote,
       nextSessionNote: row.nextSessionNote,
@@ -163,6 +169,34 @@ export class AssignmentsService {
       throw new BadRequestException('Member and trainer must belong to this gym');
     }
 
+    const sessionNote =
+      dto.nextSessionNote?.trim() || '11:00 AM — daily PT';
+
+    let planLabel = dto.planLabel?.trim() ?? '';
+    let trainerPlanId: string | null = null;
+    let planEndsAt: Date | null = null;
+
+    if (dto.trainerPlanId) {
+      const trainerPlan = await this.prisma.trainerMembershipPlan.findFirst({
+        where: { id: dto.trainerPlanId, gymId: tenant.id },
+      });
+      if (!trainerPlan) throw new NotFoundException('Trainer plan not found');
+      planLabel = trainerPlan.name;
+      trainerPlanId = trainerPlan.id;
+      const base = dto.startDate
+        ? new Date(`${dto.startDate.slice(0, 10)}T00:00:00.000Z`)
+        : new Date();
+      base.setUTCHours(0, 0, 0, 0);
+      if (Number.isNaN(base.getTime())) {
+        throw new BadRequestException('Invalid start date');
+      }
+      const end = new Date(base);
+      end.setUTCDate(end.getUTCDate() + trainerPlan.durationDays - 1);
+      planEndsAt = end;
+    } else if (!planLabel) {
+      throw new BadRequestException('Select a trainer plan or enter a plan name');
+    }
+
     const row = await this.prisma.memberTrainerAssignment.upsert({
       where: {
         gymId_memberUserId: {
@@ -174,18 +208,22 @@ export class AssignmentsService {
         gymId: tenant.id,
         memberUserId: member.id,
         trainerUserId: trainer.id,
-        planLabel: dto.planLabel,
+        trainerPlanId,
+        planLabel,
+        planEndsAt,
         membershipStatus: dto.membershipStatus,
         membershipNote: dto.membershipNote,
-        nextSessionNote: dto.nextSessionNote,
+        nextSessionNote: sessionNote,
         active: true,
       },
       update: {
         trainerUserId: trainer.id,
-        planLabel: dto.planLabel,
+        trainerPlanId,
+        planLabel,
+        planEndsAt,
         membershipStatus: dto.membershipStatus,
         membershipNote: dto.membershipNote,
-        nextSessionNote: dto.nextSessionNote,
+        nextSessionNote: sessionNote,
         active: true,
       },
       include: { tenant: true, member: true, trainer: true },

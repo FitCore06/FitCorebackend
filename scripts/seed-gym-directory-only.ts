@@ -23,7 +23,7 @@ async function main() {
     create: {
       gymId: tenant.id,
       isListed: true,
-      planTier: 'featured',
+      planTier: 'basic',
       state: 'Delhi',
       city: 'New Delhi',
       area: 'Connaught Place',
@@ -35,7 +35,7 @@ async function main() {
     },
     update: {
       isListed: true,
-      planTier: 'featured',
+      planTier: 'basic',
       state: 'Delhi',
       city: 'New Delhi',
       area: 'Connaught Place',

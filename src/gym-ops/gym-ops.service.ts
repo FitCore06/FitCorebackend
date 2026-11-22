@@ -56,20 +56,68 @@ export class GymOpsService {
       where: { gymId: tenant.id },
       orderBy: { priceInr: 'asc' },
     });
-    const assignments = await this.prisma.memberTrainerAssignment.groupBy({
-      by: ['planLabel'],
-      where: { gymId: tenant.id, active: true },
+    const counts = await this.prisma.memberMembership.groupBy({
+      by: ['planId'],
+      where: {
+        gymId: tenant.id,
+        status: { in: ['active', 'trial', 'frozen'] },
+      },
       _count: true,
     });
-    const countByPlan = new Map(assignments.map((a) => [a.planLabel, a._count]));
+    const countByPlan = new Map(counts.map((c) => [c.planId, c._count]));
     return plans.map((p) => ({
       id: p.id,
       name: p.name,
       duration: p.durationLabel,
       priceInr: p.priceInr,
       durationDays: p.durationDays,
-      activeCount: countByPlan.get(p.name) ?? 0,
+      activeCount: countByPlan.get(p.id) ?? 0,
     }));
+  }
+
+  async updateMembershipPlan(
+    user: AuthUserPayload,
+    gymSlug: string,
+    planId: string,
+    input: { name: string; durationLabel: string; priceInr: number; durationDays?: number },
+  ) {
+    const tenant = await this.tenantForAdmin(user, gymSlug);
+    const existing = await this.prisma.gymMembershipPlan.findFirst({
+      where: { id: planId, gymId: tenant.id },
+    });
+    if (!existing) throw new NotFoundException('Plan not found');
+    const durationDays =
+      input.durationDays ?? this.durationDaysFromLabel(input.durationLabel) ?? existing.durationDays;
+    if (!durationDays) {
+      throw new BadRequestException('Set duration days or a label like "3 months"');
+    }
+    return this.prisma.gymMembershipPlan.update({
+      where: { id: planId },
+      data: {
+        name: input.name.trim(),
+        durationLabel: input.durationLabel.trim(),
+        priceInr: input.priceInr,
+        durationDays,
+      },
+    });
+  }
+
+  async deleteMembershipPlan(user: AuthUserPayload, gymSlug: string, planId: string) {
+    const tenant = await this.tenantForAdmin(user, gymSlug);
+    const existing = await this.prisma.gymMembershipPlan.findFirst({
+      where: { id: planId, gymId: tenant.id },
+    });
+    if (!existing) throw new NotFoundException('Plan not found');
+    const linked = await this.prisma.memberMembership.count({
+      where: { gymId: tenant.id, planId },
+    });
+    if (linked > 0) {
+      throw new BadRequestException(
+        'Members are linked to this plan. Edit instead, or delete only when no member has used this plan.',
+      );
+    }
+    await this.prisma.gymMembershipPlan.delete({ where: { id: planId } });
+    return { deleted: true };
   }
 
   async activeMemberships(user: AuthUserPayload, gymSlug: string) {
@@ -288,6 +336,97 @@ export class GymOpsService {
         durationDays: input.durationDays ?? this.durationDaysFromLabel(input.durationLabel),
       },
     });
+  }
+
+  async trainerMembershipPlans(user: AuthUserPayload, gymSlug: string) {
+    const tenant = await this.tenantForAdmin(user, gymSlug);
+    const plans = await this.prisma.trainerMembershipPlan.findMany({
+      where: { gymId: tenant.id },
+      orderBy: { priceInr: 'asc' },
+    });
+    const counts = await this.prisma.memberTrainerAssignment.groupBy({
+      by: ['trainerPlanId'],
+      where: { gymId: tenant.id, active: true, trainerPlanId: { not: null } },
+      _count: true,
+    });
+    const countByPlan = new Map(
+      counts.map((c) => [c.trainerPlanId!, c._count]),
+    );
+    return plans.map((p) => ({
+      id: p.id,
+      name: p.name,
+      duration: p.durationLabel,
+      priceInr: p.priceInr,
+      durationDays: p.durationDays,
+      activeCount: countByPlan.get(p.id) ?? 0,
+    }));
+  }
+
+  async createTrainerMembershipPlan(
+    user: AuthUserPayload,
+    gymSlug: string,
+    input: { name: string; durationLabel: string; priceInr: number; durationDays?: number },
+  ) {
+    const tenant = await this.tenantForAdmin(user, gymSlug);
+    const durationDays =
+      input.durationDays ?? this.durationDaysFromLabel(input.durationLabel);
+    if (!durationDays) {
+      throw new BadRequestException('Set duration days or a label like "3 months"');
+    }
+    return this.prisma.trainerMembershipPlan.create({
+      data: {
+        gymId: tenant.id,
+        name: input.name.trim(),
+        durationLabel: input.durationLabel.trim(),
+        priceInr: input.priceInr,
+        durationDays,
+      },
+    });
+  }
+
+  async updateTrainerMembershipPlan(
+    user: AuthUserPayload,
+    gymSlug: string,
+    planId: string,
+    input: { name: string; durationLabel: string; priceInr: number; durationDays?: number },
+  ) {
+    const tenant = await this.tenantForAdmin(user, gymSlug);
+    const existing = await this.prisma.trainerMembershipPlan.findFirst({
+      where: { id: planId, gymId: tenant.id },
+    });
+    if (!existing) throw new NotFoundException('Trainer plan not found');
+    const durationDays =
+      input.durationDays ?? this.durationDaysFromLabel(input.durationLabel) ?? existing.durationDays;
+    if (!durationDays) {
+      throw new BadRequestException('Set duration days or a label like "3 months"');
+    }
+    return this.prisma.trainerMembershipPlan.update({
+      where: { id: planId },
+      data: {
+        name: input.name.trim(),
+        durationLabel: input.durationLabel.trim(),
+        priceInr: input.priceInr,
+        durationDays,
+      },
+    });
+  }
+
+  async deleteTrainerMembershipPlan(user: AuthUserPayload, gymSlug: string, planId: string) {
+    const tenant = await this.tenantForAdmin(user, gymSlug);
+    const existing = await this.prisma.trainerMembershipPlan.findFirst({
+      where: { id: planId, gymId: tenant.id },
+    });
+    if (!existing) throw new NotFoundException('Trainer plan not found');
+    const linked = await this.prisma.memberTrainerAssignment.count({
+      where: { gymId: tenant.id, trainerPlanId: planId },
+    });
+    if (linked > 0) {
+      throw new BadRequestException(
+        'Members are linked to this trainer plan. Remove or change assignments before deleting.',
+      );
+    }
+    await this.prisma.trainerMembershipPlan.delete({ where: { id: planId } });
+    return { deleted: true };
   }
 
   private durationDaysFromLabel(label: string) {

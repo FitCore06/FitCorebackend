@@ -54,6 +54,64 @@ export class GymOpsController {
     return this.ops.createMembershipPlan(req.user, gymSlug, dto);
   }
 
+  @Patch('memberships/plans/:planId')
+  @Roles(Role.GYM_ADMIN)
+  updatePlan(
+    @Req() req: AuthedRequest,
+    @Param('planId') planId: string,
+    @Query('gymSlug') gymSlug: string,
+    @Body() dto: CreateMembershipPlanDto,
+  ) {
+    return this.ops.updateMembershipPlan(req.user, gymSlug, planId, dto);
+  }
+
+  @Delete('memberships/plans/:planId')
+  @Roles(Role.GYM_ADMIN)
+  deletePlan(
+    @Req() req: AuthedRequest,
+    @Param('planId') planId: string,
+    @Query('gymSlug') gymSlug: string,
+  ) {
+    return this.ops.deleteMembershipPlan(req.user, gymSlug, planId);
+  }
+
+  @Get('trainer-memberships/plans')
+  @Roles(Role.GYM_ADMIN)
+  trainerPlans(@Req() req: AuthedRequest, @Query('gymSlug') gymSlug: string) {
+    return this.ops.trainerMembershipPlans(req.user, gymSlug);
+  }
+
+  @Post('trainer-memberships/plans')
+  @Roles(Role.GYM_ADMIN)
+  createTrainerPlan(
+    @Req() req: AuthedRequest,
+    @Query('gymSlug') gymSlug: string,
+    @Body() dto: CreateMembershipPlanDto,
+  ) {
+    return this.ops.createTrainerMembershipPlan(req.user, gymSlug, dto);
+  }
+
+  @Patch('trainer-memberships/plans/:planId')
+  @Roles(Role.GYM_ADMIN)
+  updateTrainerPlan(
+    @Req() req: AuthedRequest,
+    @Param('planId') planId: string,
+    @Query('gymSlug') gymSlug: string,
+    @Body() dto: CreateMembershipPlanDto,
+  ) {
+    return this.ops.updateTrainerMembershipPlan(req.user, gymSlug, planId, dto);
+  }
+
+  @Delete('trainer-memberships/plans/:planId')
+  @Roles(Role.GYM_ADMIN)
+  deleteTrainerPlan(
+    @Req() req: AuthedRequest,
+    @Param('planId') planId: string,
+    @Query('gymSlug') gymSlug: string,
+  ) {
+    return this.ops.deleteTrainerMembershipPlan(req.user, gymSlug, planId);
+  }
+
   @Get('memberships/active')
   @Roles(Role.GYM_ADMIN)
   active(@Req() req: AuthedRequest, @Query('gymSlug') gymSlug: string) {

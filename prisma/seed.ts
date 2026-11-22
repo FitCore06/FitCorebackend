@@ -76,7 +76,7 @@ async function main() {
     create: {
       gymId: tenant.id,
       isListed: true,
-      planTier: 'featured',
+      planTier: 'basic',
       state: 'Delhi',
       city: 'New Delhi',
       area: 'Connaught Place',
@@ -88,7 +88,7 @@ async function main() {
     },
     update: {
       isListed: true,
-      planTier: 'featured',
+      planTier: 'basic',
       state: 'Delhi',
       city: 'New Delhi',
       area: 'Connaught Place',
@@ -162,6 +162,42 @@ async function main() {
   const newMember = usersByEmail['newmember@gym.test'];
   const trainer = usersByEmail['trainer@gym.test'];
 
+  let trainerPlanMonthly = await prisma.trainerMembershipPlan.findFirst({
+    where: { gymId: tenant.id, name: 'PT Monthly (12 sessions)' },
+  });
+  if (!trainerPlanMonthly) {
+    trainerPlanMonthly = await prisma.trainerMembershipPlan.create({
+      data: {
+        gymId: tenant.id,
+        name: 'PT Monthly (12 sessions)',
+        durationLabel: '1 month',
+        priceInr: 7999,
+        durationDays: 30,
+      },
+    });
+  }
+  let trainerPlanTrial = await prisma.trainerMembershipPlan.findFirst({
+    where: { gymId: tenant.id, name: 'PT Trial Week' },
+  });
+  if (!trainerPlanTrial) {
+    trainerPlanTrial = await prisma.trainerMembershipPlan.create({
+      data: {
+        gymId: tenant.id,
+        name: 'PT Trial Week',
+        durationLabel: '7 days',
+        priceInr: 999,
+        durationDays: 7,
+      },
+    });
+  }
+
+  const planEndsInDays = (days: number) => {
+    const end = new Date();
+    end.setUTCHours(0, 0, 0, 0);
+    end.setUTCDate(end.getUTCDate() + days - 1);
+    return end;
+  };
+
   if (member && trainer) {
     await prisma.memberTrainerAssignment.upsert({
       where: {
@@ -196,17 +232,21 @@ async function main() {
         gymId: tenant.id,
         memberUserId: newMember.id,
         trainerUserId: trainer.id,
-        planLabel: '7-day trial',
+        trainerPlanId: trainerPlanTrial.id,
+        planLabel: trainerPlanTrial.name,
+        planEndsAt: planEndsInDays(trainerPlanTrial.durationDays),
         membershipStatus: 'trial',
         membershipNote: 'Trial ends in 5 days — trainer will help you pick a plan',
-        nextSessionNote: 'Today 11:00 AM with Demo Trainer',
+        nextSessionNote: '11:00 AM — daily PT',
       },
       update: {
         trainerUserId: trainer.id,
-        planLabel: '7-day trial',
+        trainerPlanId: trainerPlanTrial.id,
+        planLabel: trainerPlanTrial.name,
+        planEndsAt: planEndsInDays(trainerPlanTrial.durationDays),
         membershipStatus: 'trial',
         membershipNote: 'Trial ends in 5 days — trainer will help you pick a plan',
-        nextSessionNote: 'Today 11:00 AM with Demo Trainer',
+        nextSessionNote: '11:00 AM — daily PT',
         active: true,
       },
     });

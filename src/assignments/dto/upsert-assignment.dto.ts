@@ -1,4 +1,4 @@
-import { IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 
 const STATUSES = ['active', 'trial', 'frozen', 'expired'] as const;
 
@@ -13,9 +13,14 @@ export class UpsertAssignmentDto {
   @MinLength(2)
   gymSlug!: string;
 
+  @IsOptional()
   @IsString()
   @MinLength(2)
-  planLabel!: string;
+  planLabel?: string;
+
+  @IsOptional()
+  @IsUUID()
+  trainerPlanId?: string;
 
   @IsIn(STATUSES)
   membershipStatus!: (typeof STATUSES)[number];
@@ -27,4 +32,9 @@ export class UpsertAssignmentDto {
   @IsOptional()
   @IsString()
   nextSessionNote?: string;
+
+  /** YYYY-MM-DD — trainer plan validity starts here (default today). */
+  @IsOptional()
+  @IsString()
+  startDate?: string;
 }

@@ -42,6 +42,7 @@ model Tenant {
   paymentLedgerEntries     PaymentLedgerEntry[]
   trainerProfiles          TrainerProfile[]
   membershipPlans          GymMembershipPlan[]
+  trainerMembershipPlans   TrainerMembershipPlan[]
   trialLeads               TrialLead[]
   crmLeads                 CrmLead[]
   gymEquipment             GymEquipment[]
@@ -330,6 +331,21 @@ model GymMembershipPlan {
 
   @@index([gymId])
   @@map("gym_membership_plans")
+}
+
+model TrainerMembershipPlan {
+  id            String @id @default(uuid())
+  gymId         String @map("gym_id")
+  name          String
+  durationLabel String @map("duration_label")
+  priceInr      Int    @map("price_inr")
+  durationDays  Int    @map("duration_days")
+
+  tenant      Tenant                    @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  assignments MemberTrainerAssignment[]
+
+  @@index([gymId])
+  @@map("trainer_membership_plans")
 }
 
 model MemberMembership {
@@ -841,7 +857,9 @@ model MemberTrainerAssignment {
   gymId            String   @map("gym_id")
   memberUserId     String   @map("member_user_id")
   trainerUserId    String   @map("trainer_user_id")
+  trainerPlanId    String?  @map("trainer_plan_id")
   planLabel        String   @map("plan_label")
+  planEndsAt       DateTime? @map("plan_ends_at") @db.Date
   membershipStatus String   @map("membership_status")
   membershipNote   String?  @map("membership_note")
   nextSessionNote  String?  @map("next_session_note")
@@ -849,14 +867,33 @@ model MemberTrainerAssignment {
   assignedAt       DateTime @default(now()) @map("assigned_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  tenant  Tenant @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  member  User   @relation("AssignmentMember", fields: [memberUserId], references: [id], onDelete: Cascade)
-  trainer User   @relation("AssignmentTrainer", fields: [trainerUserId], references: [id], onDelete: Cascade)
+  tenant      Tenant                 @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  member      User                   @relation("AssignmentMember", fields: [memberUserId], references: [id], onDelete: Cascade)
+  trainer     User                   @relation("AssignmentTrainer", fields: [trainerUserId], references: [id], onDelete: Cascade)
+  trainerPlan TrainerMembershipPlan? @relation(fields: [trainerPlanId], references: [id], onDelete: SetNull)
+  sessionOutcomes TrainerAssignmentSessionOutcome[]
 
   @@unique([gymId, memberUserId])
   @@index([gymId])
   @@index([trainerUserId])
   @@map("member_trainer_assignments")
+}
+
+model TrainerAssignmentSessionOutcome {
+  id            String   @id @default(uuid())
+  gymId         String   @map("gym_id")
+  trainerUserId String   @map("trainer_user_id")
+  assignmentId  String   @map("assignment_id")
+  logDate       String   @map("log_date")
+  outcome       String
+  note          String?
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  assignment MemberTrainerAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, logDate])
+  @@index([trainerUserId, logDate])
+  @@map("trainer_assignment_session_outcomes")
 }
 
 model UserTenantRole {
