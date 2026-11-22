@@ -12,6 +12,7 @@ model Tenant {
   name      String
   slug      String   @unique
   status    String   @default("active")
+  directorySubscriptionActive Boolean @default(false) @map("directory_subscription_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -67,8 +68,46 @@ model Tenant {
   foodCatalogItems         FoodCatalog[]
   memberStreakChallenges   MemberStreakChallenge[]
   registrationInvites    RegistrationInvite[]
+  directoryProfile       GymDirectoryProfile?
+  directoryReviews       GymDirectoryReview[]
 
   @@map("tenants")
+}
+
+model GymDirectoryProfile {
+  gymId        String   @id @map("gym_id")
+  isListed     Boolean  @default(false) @map("is_listed")
+  planTier     String   @default("basic") @map("plan_tier")
+  state        String   @default("")
+  city         String   @default("")
+  area         String   @default("")
+  addressLine  String   @default("") @map("address_line")
+  phone        String?
+  contactEmail String?  @map("contact_email")
+  description  String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@index([isListed, state, city])
+  @@map("gym_directory_profiles")
+}
+
+model GymDirectoryReview {
+  id         String   @id @default(uuid())
+  gymId      String   @map("gym_id")
+  authorName String   @map("author_name")
+  rating     Int
+  comment    String   @db.Text
+  status     String   @default("pending")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@index([gymId, status])
+  @@map("gym_directory_reviews")
 }
 
 model Branch {

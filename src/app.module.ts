@@ -10,6 +10,7 @@ import { FitnessModule } from './fitness/fitness.module.js';
 import { NutritionModule } from './nutrition/nutrition.module.js';
 import { MembersModule } from './members/members.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
+import { GymDirectoryModule } from './gym-directory/gym-directory.module.js';
 import { GymOpsModule } from './gym-ops/gym-ops.module.js';
 import { TrainersModule } from './trainers/trainers.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
@@ -43,6 +44,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     NutritionModule,
     PaymentsModule,
     GymOpsModule,
+    GymDirectoryModule,
     TrainersModule,
     NotificationsModule,
     MessagesModule,

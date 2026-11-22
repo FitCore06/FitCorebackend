@@ -31,6 +31,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:supabase:setup": "prisma generate && prisma migrate deploy",
+    "db:directory-seed": "tsx scripts/seed-gym-directory-only.ts",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:qa": "tsx prisma/qa-populate.ts"
