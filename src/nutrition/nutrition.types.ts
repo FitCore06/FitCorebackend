@@ -6,7 +6,7 @@ export type Per100gMacros = {
 };
 
 export type FoodSearchHit = {
-  /** Present for FitCore catalog rows */
+  /** Present for Athra catalog rows */
   id?: string;
   source: 'FITCORE' | 'USDA' | 'OPEN_FOOD_FACTS';
   nameEn: string;

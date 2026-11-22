@@ -14,14 +14,20 @@ export class AutomationSecretGuard implements CanActivate {
   constructor(private readonly config: ConfigService) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const secret = this.config.get<string>('FITCORE_AUTOMATION_SECRET')?.trim();
+    const secret =
+      this.config.get<string>('ATHRA_AUTOMATION_SECRET')?.trim() ||
+      this.config.get<string>('FITCORE_AUTOMATION_SECRET')?.trim();
     if (!secret) {
       throw new ServiceUnavailableException(
-        'FITCORE_AUTOMATION_SECRET is not configured on the API',
+        'ATHRA_AUTOMATION_SECRET is not configured on the API',
       );
     }
     const req = context.switchToHttp().getRequest<Request>();
-    const provided = String(req.headers['x-fitcore-automation-secret'] ?? '').trim();
+    const provided = String(
+      req.headers['x-athra-automation-secret'] ??
+        req.headers['x-fitcore-automation-secret'] ??
+        '',
+    ).trim();
     if (!provided) throw new UnauthorizedException('Missing automation secret');
     const a = Buffer.from(secret);
     const b = Buffer.from(provided);

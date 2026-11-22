@@ -48,7 +48,7 @@ export class OpenFoodFactsProvider {
     try {
       const res = await fetch(url, {
         signal: AbortSignal.timeout(timeoutMs),
-        headers: { 'User-Agent': 'FitCore-Nutrition/1.0 (member food log)' },
+        headers: { 'User-Agent': 'Athra-Nutrition/1.0 (member food log)' },
       });
       if (!res.ok) {
         this.logger.warn(`Open Food Facts HTTP ${res.status}`);

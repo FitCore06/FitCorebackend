@@ -15,7 +15,7 @@ export class MailService {
     const apiKey = this.config.get<string>('RESEND_API_KEY')?.trim();
     const from =
       this.config.get<string>('PASSWORD_RESET_FROM_EMAIL')?.trim() ??
-      'FitCore <onboarding@resend.dev>';
+      'Athra <onboarding@resend.dev>';
 
     if (!apiKey) {
       this.log.warn(
@@ -26,7 +26,7 @@ export class MailService {
 
     const html = `
       <p>Hi ${escapeHtml(input.name)},</p>
-      <p>We received a request to reset your FitCore password.</p>
+      <p>We received a request to reset your Athra password.</p>
       <p><a href="${escapeHtml(input.resetLink)}">Set a new password</a></p>
       <p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p>
       <p style="color:#666;font-size:12px;">Or copy this URL:<br>${escapeHtml(input.resetLink)}</p>
@@ -42,7 +42,7 @@ export class MailService {
         body: JSON.stringify({
           from,
           to: [input.to],
-          subject: 'Reset your FitCore password',
+          subject: 'Reset your Athra password',
           html,
         }),
       });

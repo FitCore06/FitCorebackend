@@ -134,7 +134,8 @@ export class AutomationService {
   ): Promise<MembershipExpiryRunResult> {
     const list = await this.listMembershipExpiryCandidates(gymSlug, daysBefore);
     const channels = parseMembershipExpiryChannels(
-      this.config.get<string>('FITCORE_MEMBERSHIP_EXPIRY_CHANNELS'),
+      this.config.get<string>('ATHRA_MEMBERSHIP_EXPIRY_CHANNELS') ||
+        this.config.get<string>('FITCORE_MEMBERSHIP_EXPIRY_CHANNELS'),
     );
     const results: MembershipExpiryRunItem[] = [];
     let sent = 0;

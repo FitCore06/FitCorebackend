@@ -10,7 +10,7 @@ import type { FoodSearchHit, FoodSearchResponse } from './nutrition.types.js';
 import { OpenFoodFactsProvider } from './providers/open-food-facts.provider.js';
 import { UsdaProvider } from './providers/usda.provider.js';
 
-const CATALOG_LICENSE = 'FitCore curated catalog (in-house per-100g estimates)';
+const CATALOG_LICENSE = 'Athra curated catalog (in-house per-100g estimates)';
 
 @Injectable()
 export class NutritionDatabaseService {

@@ -15,14 +15,14 @@ export class HealthController {
     } catch {
       throw new ServiceUnavailableException({
         status: 'error',
-        service: 'fitcore-api',
+        service: 'athra-api',
         database: 'unavailable',
       });
     }
 
     return {
       status: 'ok',
-      service: 'fitcore-api',
+      service: 'athra-api',
       database: 'connected',
       version: '0.0.1',
       timestamp: new Date().toISOString(),

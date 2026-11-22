@@ -23,7 +23,7 @@ const DEFAULT_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const GYM_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 const OWNER_INVITE_INVALID_MESSAGE =
-  'This owner invite code is invalid, already used, or expired. Use the code FitCore sent you — not your gym name or password.';
+  'This owner invite code is invalid, already used, or expired. Use the code Athra sent you — not your gym name or password.';
 
 const MEMBER_INVITE_INVALID_MESSAGE =
   'This member invite code is invalid, already used, or expired. Ask your gym to generate a new code from Admin → Members.';

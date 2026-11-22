@@ -30,7 +30,7 @@ export class RegisterAdminDto {
 
   @ApiPropertyOptional({
     description:
-      'Single-use owner invite from FitCore (required unless ALLOW_OWNER_REGISTRATION_WITHOUT_INVITE=true)',
+      'Single-use owner invite from Athra (required unless ALLOW_OWNER_REGISTRATION_WITHOUT_INVITE=true)',
   })
   @IsOptional()
   @IsString()

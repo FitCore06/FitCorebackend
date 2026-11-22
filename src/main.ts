@@ -52,7 +52,7 @@ async function bootstrap() {
   });
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('FitCore API')
+    .setTitle('Athra API')
     .setDescription('Multi-tenant gym management platform')
     .setVersion('0.0.1')
     .build();

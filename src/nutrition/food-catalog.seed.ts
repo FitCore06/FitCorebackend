@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { GLOBAL_FOOD_CATALOG_SEEDS } from './food-catalog.seed-data.js';
 
-const CATALOG_LICENSE = 'FitCore curated catalog (in-house per-100g estimates)';
+const CATALOG_LICENSE = 'Athra curated catalog (in-house per-100g estimates)';
 
 export async function seedGlobalFoodCatalog(prisma: PrismaClient): Promise<number> {
   let count = 0;

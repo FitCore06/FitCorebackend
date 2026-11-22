@@ -18,7 +18,9 @@ export class MembershipExpiryScheduler {
 
   @Cron(DAILY_9AM_IST_CRON, { timeZone: 'UTC' })
   async runScheduledMembershipExpiryReminders(): Promise<void> {
-    const enabled = this.config.get<string>('FITCORE_MEMBERSHIP_EXPIRY_CRON_ENABLED')?.trim();
+    const enabled =
+      this.config.get<string>('ATHRA_MEMBERSHIP_EXPIRY_CRON_ENABLED')?.trim() ||
+      this.config.get<string>('FITCORE_MEMBERSHIP_EXPIRY_CRON_ENABLED')?.trim();
     if (enabled !== 'true') {
       return;
     }

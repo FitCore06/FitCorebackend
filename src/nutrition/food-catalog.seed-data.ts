@@ -1,7 +1,7 @@
 /**
- * FitCore curated global food catalog (Indian + common international staples).
+ * Athra curated global food catalog (Indian + common international staples).
  * Values are approximate per-100g edible portion for member logging — not medical claims.
- * Attribution: in-house curated; compatible with treating catalog as FitCore-owned.
+ * Attribution: in-house curated; compatible with treating catalog as Athra-owned.
  * Do not bulk-import third-party databases into this file.
  */
 
@@ -27,7 +27,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'रोटी',
     category: 'indian_bread',
     defaultServingG: 40,
-    sourceNote: 'FitCore curated estimate — plain wheat roti',
+    sourceNote: 'Athra curated estimate — plain wheat roti',
     per100g: { calories: 297, proteinG: 9, carbsG: 46, fatG: 8 },
   },
   {
@@ -36,7 +36,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'चपाती',
     category: 'indian_bread',
     defaultServingG: 35,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 290, proteinG: 9.5, carbsG: 45, fatG: 7.5 },
   },
   {
@@ -45,7 +45,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'चावल',
     category: 'grain',
     defaultServingG: 150,
-    sourceNote: 'FitCore curated estimate — boiled',
+    sourceNote: 'Athra curated estimate — boiled',
     per100g: { calories: 130, proteinG: 2.7, carbsG: 28, fatG: 0.3 },
   },
   {
@@ -53,7 +53,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Rice (brown, cooked)',
     category: 'grain',
     defaultServingG: 150,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 123, proteinG: 2.7, carbsG: 26, fatG: 1 },
   },
   {
@@ -62,7 +62,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'दाल',
     category: 'legume',
     defaultServingG: 120,
-    sourceNote: 'FitCore curated estimate — home-style',
+    sourceNote: 'Athra curated estimate — home-style',
     per100g: { calories: 116, proteinG: 9, carbsG: 20, fatG: 0.4 },
   },
   {
@@ -70,7 +70,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Dal (moong, cooked)',
     category: 'legume',
     defaultServingG: 120,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 105, proteinG: 7.5, carbsG: 19, fatG: 0.4 },
   },
   {
@@ -78,7 +78,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Rajma (kidney beans, cooked)',
     category: 'legume',
     defaultServingG: 130,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 127, proteinG: 8.7, carbsG: 23, fatG: 0.5 },
   },
   {
@@ -86,7 +86,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Chole (chickpeas, cooked)',
     category: 'legume',
     defaultServingG: 130,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 164, proteinG: 8.9, carbsG: 27, fatG: 2.6 },
   },
   {
@@ -95,7 +95,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'इडली',
     category: 'indian_plate',
     defaultServingG: 80,
-    sourceNote: 'FitCore curated estimate — steamed',
+    sourceNote: 'Athra curated estimate — steamed',
     per100g: { calories: 154, proteinG: 4.5, carbsG: 33, fatG: 0.5 },
   },
   {
@@ -104,7 +104,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'डोसा',
     category: 'indian_plate',
     defaultServingG: 120,
-    sourceNote: 'FitCore curated estimate — plain, minimal oil',
+    sourceNote: 'Athra curated estimate — plain, minimal oil',
     per100g: { calories: 168, proteinG: 4.2, carbsG: 28, fatG: 4.5 },
   },
   {
@@ -112,7 +112,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Poha (flattened rice dish)',
     category: 'indian_plate',
     defaultServingG: 180,
-    sourceNote: 'FitCore curated estimate — light oil',
+    sourceNote: 'Athra curated estimate — light oil',
     per100g: { calories: 158, proteinG: 3.5, carbsG: 30, fatG: 3 },
   },
   {
@@ -120,7 +120,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Upma (semolina)',
     category: 'indian_plate',
     defaultServingG: 200,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 142, proteinG: 3.8, carbsG: 24, fatG: 4 },
   },
   {
@@ -129,7 +129,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'पनीर',
     category: 'dairy',
     defaultServingG: 80,
-    sourceNote: 'FitCore curated estimate — fresh',
+    sourceNote: 'Athra curated estimate — fresh',
     per100g: { calories: 265, proteinG: 18, carbsG: 3, fatG: 20 },
   },
   {
@@ -138,7 +138,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'दही',
     category: 'dairy',
     defaultServingG: 150,
-    sourceNote: 'FitCore curated estimate — plain',
+    sourceNote: 'Athra curated estimate — plain',
     per100g: { calories: 61, proteinG: 3.5, carbsG: 4.7, fatG: 3.3 },
   },
   {
@@ -147,7 +147,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'दूध',
     category: 'dairy',
     defaultServingG: 200,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 61, proteinG: 3.2, carbsG: 4.8, fatG: 3.3 },
   },
   {
@@ -156,7 +156,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'अंडा',
     category: 'protein',
     defaultServingG: 50,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 155, proteinG: 13, carbsG: 1.1, fatG: 11 },
   },
   {
@@ -164,7 +164,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Chicken breast (cooked, no skin)',
     category: 'protein',
     defaultServingG: 120,
-    sourceNote: 'FitCore curated estimate — grilled/boiled',
+    sourceNote: 'Athra curated estimate — grilled/boiled',
     per100g: { calories: 165, proteinG: 31, carbsG: 0, fatG: 3.6 },
   },
   {
@@ -172,7 +172,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Chicken curry (homestyle)',
     category: 'indian_plate',
     defaultServingG: 150,
-    sourceNote: 'FitCore curated estimate — moderate oil',
+    sourceNote: 'Athra curated estimate — moderate oil',
     per100g: { calories: 185, proteinG: 14, carbsG: 6, fatG: 12 },
   },
   {
@@ -180,7 +180,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Fish (rohu, cooked)',
     category: 'protein',
     defaultServingG: 120,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 144, proteinG: 20, carbsG: 0, fatG: 7 },
   },
   {
@@ -189,7 +189,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'आलू',
     category: 'vegetable',
     defaultServingG: 150,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 87, proteinG: 1.9, carbsG: 20, fatG: 0.1 },
   },
   {
@@ -198,21 +198,21 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'पालक',
     category: 'vegetable',
     defaultServingG: 100,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 36, proteinG: 3.5, carbsG: 5.5, fatG: 0.4 },
   },
   {
     slug: 'cauliflower-cooked',
     nameEn: 'Cauliflower (cooked)',
     category: 'vegetable',
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 28, proteinG: 2, carbsG: 5, fatG: 0.3 },
   },
   {
     slug: 'mixed-salad-raw',
     nameEn: 'Mixed salad (raw)',
     category: 'vegetable',
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 20, proteinG: 1.2, carbsG: 3.5, fatG: 0.2 },
   },
   {
@@ -221,7 +221,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'केला',
     category: 'fruit',
     defaultServingG: 120,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 89, proteinG: 1.1, carbsG: 23, fatG: 0.3 },
   },
   {
@@ -230,7 +230,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'सेब',
     category: 'fruit',
     defaultServingG: 180,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 52, proteinG: 0.3, carbsG: 14, fatG: 0.2 },
   },
   {
@@ -238,14 +238,14 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Mango',
     nameHi: 'आम',
     category: 'fruit',
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 60, proteinG: 0.8, carbsG: 15, fatG: 0.4 },
   },
   {
     slug: 'grapes',
     nameEn: 'Grapes',
     category: 'fruit',
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 69, proteinG: 0.7, carbsG: 18, fatG: 0.2 },
   },
   {
@@ -253,7 +253,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Chicken biryani',
     category: 'indian_plate',
     defaultServingG: 250,
-    sourceNote: 'FitCore curated estimate — moderate portion',
+    sourceNote: 'Athra curated estimate — moderate portion',
     per100g: { calories: 175, proteinG: 8, carbsG: 24, fatG: 5 },
   },
   {
@@ -262,7 +262,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'पानी पूरी',
     category: 'indian_street',
     defaultServingG: 120,
-    sourceNote: 'FitCore curated estimate — typical street portion',
+    sourceNote: 'Athra curated estimate — typical street portion',
     per100g: { calories: 190, proteinG: 4, carbsG: 28, fatG: 7 },
   },
   {
@@ -271,7 +271,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'समोसा',
     category: 'indian_street',
     defaultServingG: 80,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 262, proteinG: 5, carbsG: 28, fatG: 14 },
   },
   {
@@ -279,7 +279,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Vada pav',
     category: 'indian_street',
     defaultServingG: 150,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 220, proteinG: 5.5, carbsG: 30, fatG: 9 },
   },
   {
@@ -288,7 +288,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'डोसा',
     category: 'indian_plate',
     defaultServingG: 120,
-    sourceNote: 'FitCore curated estimate — no filling',
+    sourceNote: 'Athra curated estimate — no filling',
     per100g: { calories: 165, proteinG: 4, carbsG: 28, fatG: 4 },
   },
   {
@@ -297,7 +297,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'इडली',
     category: 'indian_plate',
     defaultServingG: 120,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 128, proteinG: 4.5, carbsG: 26, fatG: 0.5 },
   },
   {
@@ -306,7 +306,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameHi: 'अचार',
     category: 'condiment',
     defaultServingG: 30,
-    sourceNote: 'FitCore curated estimate — Indian mango pickle',
+    sourceNote: 'Athra curated estimate — Indian mango pickle',
     per100g: { calories: 130, proteinG: 1.5, carbsG: 18, fatG: 6 },
   },
   {
@@ -314,7 +314,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Pickle (cucumber, dill)',
     category: 'condiment',
     defaultServingG: 35,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 11, proteinG: 0.4, carbsG: 2.3, fatG: 0.2 },
   },
   {
@@ -322,7 +322,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Pickle (mixed vegetable, Indian)',
     category: 'condiment',
     defaultServingG: 25,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 95, proteinG: 1.2, carbsG: 12, fatG: 5 },
   },
   {
@@ -330,7 +330,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Sushi roll (California)',
     category: 'international',
     defaultServingG: 140,
-    sourceNote: 'FitCore curated estimate — 6–8 pieces',
+    sourceNote: 'Athra curated estimate — 6–8 pieces',
     per100g: { calories: 175, proteinG: 6, carbsG: 28, fatG: 4.5 },
   },
   {
@@ -338,7 +338,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Sushi (salmon nigiri)',
     category: 'international',
     defaultServingG: 120,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 155, proteinG: 9, carbsG: 24, fatG: 3 },
   },
   {
@@ -346,14 +346,14 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Sushi roll (vegetable)',
     category: 'international',
     defaultServingG: 130,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 140, proteinG: 3.5, carbsG: 26, fatG: 2.5 },
   },
   {
     slug: 'oatmeal-cooked',
     nameEn: 'Oatmeal (cooked)',
     category: 'grain',
-    sourceNote: 'FitCore curated estimate — water, no sugar',
+    sourceNote: 'Athra curated estimate — water, no sugar',
     per100g: { calories: 71, proteinG: 2.5, carbsG: 12, fatG: 1.5 },
   },
   {
@@ -361,7 +361,7 @@ export const GLOBAL_FOOD_CATALOG_SEEDS: FoodCatalogSeedItem[] = [
     nameEn: 'Bread (whole wheat)',
     category: 'international',
     defaultServingG: 30,
-    sourceNote: 'FitCore curated estimate',
+    sourceNote: 'Athra curated estimate',
     per100g: { calories: 247, proteinG: 13, carbsG: 41, fatG: 3.4 },
   },
 ];

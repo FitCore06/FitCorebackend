@@ -33,7 +33,7 @@ import { RegistrationInviteService } from './registration-invite.service.js';
 
 const ACCESS_TTL_SECONDS = 60 * 15;
 const FORGOT_PASSWORD_GENERIC_MESSAGE =
-  'If this email is registered with FitCore, you will receive password reset instructions shortly.';
+  'If this email is registered with Athra, you will receive password reset instructions shortly.';
 const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 
@@ -494,7 +494,7 @@ export class AuthService {
     }
     if (!trimmed) {
       throw new BadRequestException(
-        'Owner invite code is required. Use the code FitCore sent you, or ask support to enable open owner signup.',
+        'Owner invite code is required. Use the code Athra sent you, or ask support to enable open owner signup.',
       );
     }
     await this.registrationInvites.consumeOwnerInvite(trimmed, email);

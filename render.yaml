@@ -1,12 +1,11 @@
-# Render Blueprint — FitCore API (NestJS + Prisma → Supabase Postgres)
+# Render Blueprint — Athra API (NestJS + Prisma → Supabase Postgres)
 #
 # Build: generate Prisma client + compile only (no DB).
 # Migrations: explicit — npm run render:migrate (session pooler DATABASE_URL).
 # Optional per deploy: preDeployCommand: npm run render:migrate
 #
-# Membership expiry reminders: FITCORE_MEMBERSHIP_EXPIRY_CRON_ENABLED=true (~9am IST in-process).
-# Optional trigger: POST /api/v1/automation/membership-expiry/run + FITCORE_AUTOMATION_SECRET.
-# Env: FITCORE_GYM_SLUG, FITCORE_EXPIRY_NOTIFY_DAYS, EXPO_ACCESS_TOKEN (push).
+# Membership expiry: ATHRA_* env (FITCORE_* still honored). Cron ~9am IST.
+# Trigger: POST /api/v1/automation/membership-expiry/run + ATHRA_AUTOMATION_SECRET header X-Athra-Automation-Secret.
 services:
   - type: web
     name: fitcore-api

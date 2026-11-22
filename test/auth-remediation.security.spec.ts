@@ -204,7 +204,7 @@ describe('Auth security remediation', () => {
     expect(unknown).toEqual({
       ok: true,
       message:
-        'If this email is registered with FitCore, you will receive password reset instructions shortly.',
+        'If this email is registered with Athra, you will receive password reset instructions shortly.',
     });
     expect(known.message).toBe(unknown.message);
     expect(known.ok).toBe(true);

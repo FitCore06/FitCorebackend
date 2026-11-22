@@ -642,7 +642,7 @@ export class PaymentsService {
 
     const issued = row.updatedAt.toISOString().slice(0, 10);
     const lines = [
-      `FitCore payment receipt`,
+      `Athra payment receipt`,
       `Gym: ${row.tenant.name}`,
       `Receipt ID: ${row.id}`,
       `Date: ${issued}`,

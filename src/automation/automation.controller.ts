@@ -10,8 +10,8 @@ import { AutomationService } from './automation.service.js';
 @Controller('automation')
 @UseGuards(AutomationSecretGuard)
 @ApiHeader({
-  name: 'X-FitCore-Automation-Secret',
-  description: 'Shared secret for Render cron / internal jobs (FITCORE_AUTOMATION_SECRET)',
+  name: 'X-Athra-Automation-Secret',
+  description: 'Shared secret (ATHRA_AUTOMATION_SECRET or legacy FITCORE_AUTOMATION_SECRET)',
   required: true,
 })
 export class AutomationController {

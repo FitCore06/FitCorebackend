@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { FoodSearchHit, Per100gMacros } from '../nutrition.types.js';
 
 const USDA_ATTRIBUTION =
-  'Food data from USDA FoodData Central (CC0). FitCore does not redistribute the full USDA database.';
+  'Food data from USDA FoodData Central (CC0). Athra does not redistribute the full USDA database.';
 
 type FdcNutrient = {
   nutrientId?: number;
