@@ -44,17 +44,40 @@ jobs:
             local raw="$1"
             raw="${raw#\"}"; raw="${raw%\"}"
             raw="${raw//$'\\n'/$'\n'}"
-            printf '%b' "$raw" > "$keyfile"
+            if [[ "$raw" == *$'\n'* ]] || [[ "$raw" == *'-----BEGIN'* ]]; then
+              printf '%s' "$raw" > "$keyfile"
+            else
+              printf '%b' "$raw" > "$keyfile"
+            fi
             normalize_keyfile
-            if ! grep -q 'BEGIN .*PRIVATE KEY' "$keyfile"; then
+            try_unwrap_pem() {
               local oneline
-              oneline="$(tr -d '\n' < "$keyfile")"
+              oneline="$(tr -d ' \n' < "$keyfile")"
+              if [ "${#oneline}" -lt 200 ]; then
+                return 1
+              fi
               if printf '%s' "$oneline" | grep -qE '^[A-Za-z0-9+/=]+$'; then
                 if printf '%s' "$oneline" | base64 -d > "${keyfile}.dec" 2>/dev/null; then
                   mv "${keyfile}.dec" "$keyfile"
                   normalize_keyfile
+                  grep -q 'BEGIN .*PRIVATE KEY' "$keyfile" && return 0
                 fi
+                {
+                  echo '-----BEGIN RSA PRIVATE KEY-----'
+                  printf '%s' "$oneline" | fold -w 64
+                  echo '-----END RSA PRIVATE KEY-----'
+                } > "${keyfile}.wrap"
+                if ssh-keygen -y -f "${keyfile}.wrap" > /dev/null 2>&1; then
+                  mv "${keyfile}.wrap" "$keyfile"
+                  normalize_keyfile
+                  return 0
+                fi
+                rm -f "${keyfile}.wrap"
               fi
+              return 1
+            }
+            if ! grep -q 'BEGIN .*PRIVATE KEY' "$keyfile"; then
+              try_unwrap_pem || true
             fi
           }
 
@@ -99,13 +122,16 @@ jobs:
           chmod 600 "$keyfile"
           if ! key_ok; then
             bytes="$(wc -c < "$keyfile" | tr -d ' ')"
+            b64_chars="$(printf '%s' "${ORACLE_SSH_KEY_B64:-}" | wc -c | tr -d ' ')"
+            raw_chars="$(printf '%s' "${ORACLE_SSH_KEY:-}" | wc -c | tr -d ' ')"
             has_begin="no"
             grep -q 'BEGIN .*PRIVATE KEY' "$keyfile" && has_begin="yes"
             looks_public="no"
             grep -qE '^ssh-(rsa|ed25519|ecdsa)[[:space:]]' "$keyfile" && looks_public="yes"
-            echo "::error::SSH key from ${source_used} invalid (bytes=${bytes}, begin_private_key=${has_begin}, looks_public=${looks_public})."
-            echo "::error::Use Oracle .key download (BEGIN…PRIVATE KEY…END), not .pub. Prefer ORACLE_SSH_KEY_B64 only — delete the other secret."
-            echo "::error::Passphrase-protected keys fail in CI; use an unencrypted private key."
+            echo "::error::SSH key from ${source_used} invalid (pem_bytes=${bytes}, begin_private_key=${has_begin}, looks_public=${looks_public})."
+            echo "::error::GitHub secret sizes (chars): ORACLE_SSH_KEY_B64=${b64_chars}, ORACLE_SSH_KEY=${raw_chars}. Oracle RSA .key → B64 one line is usually ~2200 chars, PEM file ~1600 bytes."
+            echo "::error::Delete both SSH secrets, then set only ORACLE_SSH_KEY_B64 from: ./scripts/encode-oracle-ssh-secret.sh ~/Downloads/ssh-key-2026-11-23.key"
+            echo "::error::Not .pub (399 chars). Passphrase-protected keys fail in CI."
             exit 1
           fi
           echo "SSH private key OK (${source_used})."
