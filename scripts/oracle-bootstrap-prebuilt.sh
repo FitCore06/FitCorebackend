@@ -115,7 +115,23 @@ systemctl --user daemon-reload
 systemctl --user enable athra-api.service
 systemctl --user restart athra-api.service
 
-sleep 3
-curl -fsS "http://127.0.0.1:${PORT}/api/v1/health"
-echo ""
-echo "OK: deployed on port ${PORT}"
+health_url="http://127.0.0.1:${PORT}/api/v1/health"
+attempt=1
+max_attempts=15
+while [ "$attempt" -le "$max_attempts" ]; do
+  if curl -fsS --max-time 5 "$health_url" 2>/dev/null; then
+    echo ""
+    echo "OK: deployed on port ${PORT}"
+    exit 0
+  fi
+  echo "health wait ${attempt}/${max_attempts}..."
+  sleep 3
+  attempt=$((attempt + 1))
+done
+
+echo "ERROR: API not healthy at ${health_url}" >&2
+echo "==> systemctl --user status athra-api" >&2
+systemctl --user status athra-api --no-pager -l >&2 || true
+echo "==> journalctl (last 80 lines)" >&2
+journalctl --user -u athra-api -n 80 --no-pager >&2 || true
+exit 1

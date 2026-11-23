@@ -79,8 +79,21 @@ pm2 save
 pm2 startup systemd -u "$USER" --hp "$HOME" 2>/dev/null | tail -1 | bash -s || true
 
 echo "==> local health"
-sleep 2
-curl -fsS "http://127.0.0.1:${PORT}/api/v1/health"
+health_url="http://127.0.0.1:${PORT}/api/v1/health"
+attempt=1
+max_attempts=15
+while [ "$attempt" -le "$max_attempts" ]; do
+  if curl -fsS --max-time 5 "$health_url" 2>/dev/null; then
+    echo ""
+    echo "OK: Athra API on port ${PORT}"
+    exit 0
+  fi
+  echo "health wait ${attempt}/${max_attempts}..."
+  sleep 3
+  attempt=$((attempt + 1))
+done
 
-echo ""
-echo "OK: Athra API on port ${PORT}"
+echo "ERROR: API not healthy at ${health_url}" >&2
+pm2 status athra-api >&2 || true
+pm2 logs athra-api --nostream --lines 80 >&2 || true
+exit 1
