@@ -32,6 +32,7 @@ jobs:
           ORACLE_SSH_KEY_B64: ${{ secrets.ORACLE_SSH_KEY_B64 }}
         run: |
           set -euo pipefail
+          umask 077
           mkdir -p "$HOME/.ssh"
           keyfile="$HOME/.ssh/oracle_deploy_key"
 
@@ -94,21 +95,23 @@ jobs:
           }
 
           key_ok() {
-            grep -qE 'BEGIN (ENCRYPTED )?(RSA |EC |DSA |OPENSSH )?PRIVATE KEY' "$keyfile" \
-              && ! grep -qE '^ssh-(rsa|ed25519|ecdsa)[[:space:]]' "$keyfile" \
-              && ssh-keygen -y -f "$keyfile" > /dev/null 2>&1
+            chmod 600 "$keyfile" || return 1
+            grep -qE 'BEGIN (ENCRYPTED )?(RSA |EC |DSA |OPENSSH )?PRIVATE KEY' "$keyfile" || return 1
+            grep -qE '^ssh-(rsa|ed25519|ecdsa)[[:space:]]' "$keyfile" && return 1
+            ssh-keygen -y -f "$keyfile" > /dev/null 2>&1
           }
 
           source_used=""
           if [ -n "${ORACLE_SSH_KEY_B64:-}" ]; then
             if write_b64_key "$ORACLE_SSH_KEY_B64" && key_ok; then
               source_used="ORACLE_SSH_KEY_B64"
-            elif [ -n "${ORACLE_SSH_KEY:-}" ]; then
-              echo "::warning::ORACLE_SSH_KEY_B64 invalid or not a private key; trying ORACLE_SSH_KEY."
+            elif [ -n "${ORACLE_SSH_KEY:-}" ] && [ "$(printf '%s' "$ORACLE_SSH_KEY" | wc -c | tr -d ' ')" -gt 800 ]; then
+              echo "::warning::ORACLE_SSH_KEY_B64 failed ssh-keygen; trying ORACLE_SSH_KEY."
               write_raw_key "$ORACLE_SSH_KEY"
               source_used="ORACLE_SSH_KEY"
             else
-              echo "::error::ORACLE_SSH_KEY_B64 invalid. On Mac: ./scripts/encode-oracle-ssh-secret.sh ~/Downloads/ssh-key-*.key"
+              echo "::error::ORACLE_SSH_KEY_B64 decoded but ssh-keygen rejected it (or decode failed). Delete ORACLE_SSH_KEY (413 chars is not a PEM). Keep only the 2236-char ORACLE_SSH_KEY_B64."
+              ssh-keygen -y -f "$keyfile" || true
               exit 1
             fi
           elif [ -n "${ORACLE_SSH_KEY:-}" ]; then
