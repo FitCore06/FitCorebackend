@@ -43,19 +43,24 @@ jobs:
               fi
             fi
           elif [ -n "${ORACLE_SSH_KEY:-}" ]; then
-            raw="$(printf '%s' "$ORACLE_SSH_KEY")"
-            if printf '%s' "$raw" | grep -q '\\n'; then
-              printf '%b' "$(printf '%s' "$raw" | sed 's/\\n/\n/g')" > "$keyfile"
-            else
-              printf '%s' "$raw" > "$keyfile"
-            fi
+            # GitHub Secrets may contain either real multiline text or literal \n escape sequences.
+            raw_key="${ORACLE_SSH_KEY//$'\\n'/\n}"
+            printf '%b' "$raw_key" > "$keyfile"
+            printf '\n' >> "$keyfile"
           else
-            echo "::error::Set ORACLE_SSH_KEY_B64 (recommended) or ORACLE_SSH_KEY. See scripts/encode-oracle-ssh-secret.sh"
+            echo "::error::Set ORACLE_SSH_KEY (private PEM/OpenSSH key) or ORACLE_SSH_KEY_B64 in repository secrets."
             exit 1
           fi
+
           chmod 600 "$keyfile"
+          if grep -qE '^-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----$|^ssh-(rsa|ed25519|ecdsa)' "$keyfile"; then
+            :
+          else
+            echo "::error::SSH key secret is missing a private-key header or is a public key. Store the private key contents, not the .pub file."
+            exit 1
+          fi
           if ! ssh-keygen -y -f "$keyfile" > /dev/null 2>&1; then
-            echo "::error::SSH key invalid. Delete ORACLE_SSH_KEY, run scripts/encode-oracle-ssh-secret.sh on Mac, set only ORACLE_SSH_KEY_B64."
+            echo "::error::SSH key invalid (ssh: no key found). Use the private key BEGIN…END block, not .pub."
             exit 1
           fi
           echo "SSH private key OK."
