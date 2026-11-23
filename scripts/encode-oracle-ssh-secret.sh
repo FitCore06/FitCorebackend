@@ -13,6 +13,6 @@ printf '%s' "$B64" | base64 -d >"$tmpdir"
 chmod 600 "$tmpdir"
 ssh-keygen -y -f "$tmpdir" >/dev/null
 rm -f "$tmpdir"
-echo "OK: paste the ONE line below into GitHub → ORACLE_SSH_KEY_B64"
-echo "Delete repository secret ORACLE_SSH_KEY if present (use only B64)."
-echo "$B64"
+echo "OK: stdout contains only the ORACLE_SSH_KEY_B64 value." >&2
+echo "Delete repository secret ORACLE_SSH_KEY if present (use only B64)." >&2
+printf '%s\n' "$B64"

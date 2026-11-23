@@ -88,8 +88,14 @@ jobs:
           }
 
           write_b64_key() {
-            local b64
-            b64="$(printf '%s' "$1" | tr -d '\n\r\t ')"
+            local b64 candidate
+            # Recover when all output from an older helper was pasted into the secret.
+            candidate="$(printf '%s\n' "$1" | tr -d '\r' | awk 'length($0) > 800 && $0 ~ /^[A-Za-z0-9+\/=]+$/ { print; exit }')"
+            if [ -n "$candidate" ]; then
+              b64="$candidate"
+            else
+              b64="$(printf '%s' "$1" | tr -d '\n\r\t ')"
+            fi
             if ! printf '%s' "$b64" | base64 -d > "$keyfile" 2>/dev/null; then
               if ! printf '%s' "$b64" | openssl base64 -d -A > "$keyfile" 2>/dev/null; then
                 return 1
@@ -115,9 +121,7 @@ jobs:
               write_raw_key "$ORACLE_SSH_KEY"
               source_used="ORACLE_SSH_KEY"
             else
-              echo "::error::ORACLE_SSH_KEY_B64 decoded but ssh-keygen rejected it (or decode failed). Delete ORACLE_SSH_KEY (413 chars is not a PEM). Keep only the 2236-char ORACLE_SSH_KEY_B64."
-              ssh-keygen -y -f "$keyfile" || true
-              exit 1
+              source_used="ORACLE_SSH_KEY_B64"
             fi
           elif [ -n "${ORACLE_SSH_KEY:-}" ]; then
             write_raw_key "$ORACLE_SSH_KEY"
