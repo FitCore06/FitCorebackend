@@ -18,6 +18,10 @@ On every push to `main`, workflow `.github/workflows/deploy-oracle.yml` builds a
 
 Optional: `APP_PUBLIC_URL`, `FITCORE_AUTOMATION_SECRET`, Razorpay keys.
 
+| `ORACLE_SKIP_MIGRATE` | Set to `1` to skip Prisma migrate in CI (use when you already ran `npm run render:migrate` from your Mac). |
+
+**Neon URL:** Dashboard → **Connect** → **Direct** → copy full string. Host must be real (`ep-soft-cell-…`), not docs placeholder `ep-xxxx`. If password has `@ # %`, use Neon’s copy button or URL-encode it.
+
 ## Verify
 
 1. **Actions** tab → **Deploy API to Oracle** → green on last `main` push.

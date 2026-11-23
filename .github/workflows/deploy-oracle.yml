@@ -20,12 +20,25 @@ jobs:
 
       - name: Migrate (Neon / prod DB)
         run: |
-          if [ -z "${MIGRATE_DATABASE_URL:-}" ] && [ -z "${DATABASE_URL:-}" ]; then
-            echo "::error::Add GitHub secret MIGRATE_DATABASE_URL (Neon direct) or DATABASE_URL"
-            exit 1
-          fi
           npm ci
           npx prisma generate
+          if [ "${ORACLE_SKIP_MIGRATE:-}" = "true" ] || [ "${ORACLE_SKIP_MIGRATE:-}" = "1" ]; then
+            echo "Skipping CI migrate (ORACLE_SKIP_MIGRATE). DB must already be up to date."
+            exit 0
+          fi
+          if [ -z "${MIGRATE_DATABASE_URL:-}" ] && [ -z "${DATABASE_URL:-}" ]; then
+            echo "::error::Add MIGRATE_DATABASE_URL (Neon direct), DATABASE_URL, or ORACLE_SKIP_MIGRATE=1"
+            exit 1
+          fi
+          sample="${MIGRATE_DATABASE_URL:-$DATABASE_URL}"
+          host="$(printf '%s' "$sample" | sed -n 's|.*@\([^/:]*\).*|\1|p')"
+          echo "Migrate target host: ${host}"
+          case "$host" in
+            ep-xxxx*|*YOUR_*|*example*|'' )
+              echo "::error::MIGRATE_DATABASE_URL looks like a placeholder ($host). Paste Neon Connect → Direct."
+              exit 1
+              ;;
+          esac
           attempt=1
           max=6
           while [ "$attempt" -le "$max" ]; do
@@ -44,6 +57,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MIGRATE_DATABASE_URL: ${{ secrets.MIGRATE_DATABASE_URL }}
+          ORACLE_SKIP_MIGRATE: ${{ secrets.ORACLE_SKIP_MIGRATE }}
 
       - name: Build linux bundle (Docker)
         run: |
