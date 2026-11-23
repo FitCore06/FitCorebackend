@@ -15,12 +15,18 @@ export function requestContextMiddleware(
     (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
     req.socket.remoteAddress;
 
-  requestContext.run(
+  return requestContext.run(
     {
       requestId,
       ip,
       path: req.originalUrl,
     },
-    () => next(),
+    () => {
+      try {
+        return Promise.resolve(next());
+      } catch (err) {
+        next(err as Error);
+      }
+    },
   );
 }
