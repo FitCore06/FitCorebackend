@@ -10,7 +10,10 @@ On every push to `main`, workflow `.github/workflows/deploy-oracle.yml` builds a
 |--------|---------|
 | `ORACLE_HOST` | `80.225.218.137` |
 | `ORACLE_SSH_USER` | `ubuntu` |
-| `ORACLE_SSH_KEY` | Full private key file (PEM), same as Mac `Downloads/ssh-key-….key` |
+| `ORACLE_SSH_KEY` | **Private** key only (`BEGIN … PRIVATE KEY`), not `.pub`. Multiline paste. |
+| `ORACLE_SSH_KEY_B64` | **Easier:** Mac: `base64 < ~/Downloads/ssh-key-….key | tr -d '\n'` → paste one line (use instead of `ORACLE_SSH_KEY` if parse fails). |
+
+Public key must be on the VM (`~/.ssh/authorized_keys` for `ubuntu`).
 | `MIGRATE_DATABASE_URL` | **Neon direct** (no `-pooler`) — used in CI migrate step |
 | `DATABASE_URL` | **Neon pooled** — VM runtime (same as production API) |
 | `JWT_ACCESS_SECRET` | Same as Vercel/Render prod |
