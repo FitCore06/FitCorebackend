@@ -33,8 +33,9 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          mkdir -p "$HOME/.ssh"
-          keyfile="$HOME/.ssh/oracle_deploy_key"
+          # appleboy/*-action runs in Docker. Host $HOME is not mounted.
+          # RUNNER_TEMP is mounted at /github/runner_temp inside that container.
+          keyfile="${RUNNER_TEMP}/oracle_deploy_key"
 
           normalize_keyfile() {
             tr -d '\r' < "$keyfile" | sed -e '1s/^\xEF\xBB\xBF//' -e '/^[[:space:]]*$/d' > "${keyfile}.norm"
@@ -144,7 +145,7 @@ jobs:
         with:
           host: ${{ secrets.ORACLE_HOST }}
           username: ${{ secrets.ORACLE_SSH_USER }}
-          key_path: /home/runner/.ssh/oracle_deploy_key
+          key_path: /github/runner_temp/oracle_deploy_key
           source: "athra-api-linux-amd64.tar.gz,scripts/oracle-bootstrap-prebuilt.sh"
           target: /tmp/
 
@@ -164,7 +165,7 @@ jobs:
         with:
           host: ${{ secrets.ORACLE_HOST }}
           username: ${{ secrets.ORACLE_SSH_USER }}
-          key_path: /home/runner/.ssh/oracle_deploy_key
+          key_path: /github/runner_temp/oracle_deploy_key
           envs: >-
             DATABASE_URL,MIGRATE_DATABASE_URL,JWT_ACCESS_SECRET,CORS_ORIGINS,APP_PUBLIC_URL,
             FITCORE_AUTOMATION_SECRET,ATHRA_AUTOMATION_SECRET,
