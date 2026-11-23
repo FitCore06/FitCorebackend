@@ -154,7 +154,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MIGRATE_DATABASE_URL: ${{ secrets.MIGRATE_DATABASE_URL }}
           JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET }}
-          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
+          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS || 'https://athra-fit.vercel.app' }}
           APP_PUBLIC_URL: ${{ secrets.APP_PUBLIC_URL }}
           FITCORE_AUTOMATION_SECRET: ${{ secrets.FITCORE_AUTOMATION_SECRET }}
           ATHRA_AUTOMATION_SECRET: ${{ secrets.ATHRA_AUTOMATION_SECRET }}
@@ -165,10 +165,12 @@ jobs:
           set -euo pipefail
           key="${RUNNER_TEMP}/oracle_deploy_key"
           chmod 600 "$key"
-          if [ -z "${DATABASE_URL:-}" ]; then
-            echo "::error::Missing repository secret DATABASE_URL. Set it to the production pooled database URL."
-            exit 1
-          fi
+          for required in DATABASE_URL JWT_ACCESS_SECRET CORS_ORIGINS; do
+            if [ -z "${!required:-}" ]; then
+              echo "::error::Missing required deployment value ${required}."
+              exit 1
+            fi
+          done
           if [ -z "${ORACLE_HOST:-}" ] || [ -z "${ORACLE_SSH_USER:-}" ]; then
             echo "::error::Set ORACLE_HOST and ORACLE_SSH_USER. Oracle Ubuntu images use user ubuntu."
             exit 1

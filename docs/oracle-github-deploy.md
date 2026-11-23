@@ -17,7 +17,7 @@ Public key must be on the VM (`~/.ssh/authorized_keys` for `ubuntu`).
 | `MIGRATE_DATABASE_URL` | **Neon direct** (no `-pooler`) — used in CI migrate step |
 | `DATABASE_URL` | **Neon pooled** — VM runtime (same as production API) |
 | `JWT_ACCESS_SECRET` | Same as Vercel/Render prod |
-| `CORS_ORIGINS` | `https://athra-fit.vercel.app` |
+| `CORS_ORIGINS` | Optional override; defaults to `https://athra-fit.vercel.app` |
 
 Optional: `APP_PUBLIC_URL`, `FITCORE_AUTOMATION_SECRET`, Razorpay keys.
 
