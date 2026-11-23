@@ -24,3 +24,5 @@ export type AuthTokens = {
   refreshToken: string;
   expiresIn: number;
 };
+
+export type AuthSession = { user: AuthUserPayload } & AuthTokens;

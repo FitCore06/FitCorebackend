@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags } from '@nestjs/swagger';
 import { SubmitDirectoryReviewDto } from './dto/submit-directory-review.dto.js';
 import { GymDirectoryService } from './gym-directory.service.js';
@@ -33,6 +34,7 @@ export class GymDirectoryPublicController {
   }
 
   @Post('gyms/:slug/reviews')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   submitReview(@Param('slug') slug: string, @Body() dto: SubmitDirectoryReviewDto) {
     return this.directory.submitReview(slug, dto);
   }

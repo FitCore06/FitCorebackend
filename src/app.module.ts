@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule as NestCronModule } from '@nestjs/schedule';
-import { ThrottlerModule } from '@nestjs/throttler';
 import { AssignmentsModule } from './assignments/assignments.module.js';
 import { AttendanceModule } from './attendance/attendance.module.js';
 import { BookingsModule } from './bookings/bookings.module.js';
@@ -21,7 +20,9 @@ import { AuditModule } from './audit/audit.module.js';
 import { AutomationModule } from './automation/automation.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { HealthController } from './health/health.controller.js';
+import { MonitoringModule } from './monitoring/monitoring.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { SecurityModule } from './common/security/security.module.js';
 
 @Module({
   imports: [
@@ -30,9 +31,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
       envFilePath: ['.env'],
     }),
     NestCronModule.forRoot(),
-    ThrottlerModule.forRoot({
-      throttlers: [{ name: 'auth', ttl: 60_000, limit: 100 }],
-    }),
+    SecurityModule,
     PrismaModule,
     AuthModule,
     AssignmentsModule,
@@ -52,6 +51,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     ScheduleModule,
     AuditModule,
     AutomationModule,
+    MonitoringModule,
   ],
   controllers: [HealthController],
 })

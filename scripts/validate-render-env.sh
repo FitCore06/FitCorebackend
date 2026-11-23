@@ -38,6 +38,15 @@ normalize_db_env
 
 check_url "DATABASE_URL" "$DATABASE_URL"
 
+if printf '%s' "$DATABASE_URL" | grep -q '\.neon\.tech'; then
+  if printf '%s' "$DATABASE_URL" | grep -qv '\-pooler\.'; then
+    echo "WARN: Neon runtime should use the *-pooler* hostname — direct ep-* opens too many server connections."
+  fi
+  if printf '%s' "$DATABASE_URL" | grep -qv 'connection_limit='; then
+    echo "WARN: Neon DATABASE_URL missing connection_limit — API will default to 5 in production main.ts."
+  fi
+fi
+
 if printf '%s' "$DATABASE_URL" | grep -q 'pooler.supabase.com'; then
   if printf '%s' "$DATABASE_URL" | grep -qv 'postgres\.'; then
     fail "DATABASE_URL uses pooler but username must be postgres.PROJECT_REF"
