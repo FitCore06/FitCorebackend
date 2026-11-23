@@ -24,6 +24,20 @@ export class WorkoutSessionService {
     private readonly memberWeeklyPlan: MemberWeeklyPlanService,
   ) {}
 
+  /** Weekly JSON plans use synthetic ids (e.g. e1-tue-0); only persist real Exercise UUIDs. */
+  private snapshotExerciseId(raw: string | undefined | null): string | null {
+    const id = raw?.trim();
+    if (!id) return null;
+    if (
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        id,
+      )
+    ) {
+      return id;
+    }
+    return null;
+  }
+
   private async trainerReadScope(
     trainerUserId: string,
     gymId: string,
@@ -521,7 +535,7 @@ export class WorkoutSessionService {
           const sessionEx = await tx.workoutSessionExercise.create({
             data: {
               sessionId: session.id,
-              exerciseId: planEx.id,
+              exerciseId: this.snapshotExerciseId(planEx.id),
               exerciseNameSnapshot: planEx.name,
               categorySnapshot: 'strength',
               primaryMuscleSnapshot: 'other',

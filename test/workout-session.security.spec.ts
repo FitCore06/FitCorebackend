@@ -128,5 +128,59 @@ describe('WorkoutSessionService Security & Lifecycle', () => {
       BadRequestException,
     );
   });
+
+  it('starts session from weekly plan without invalid exercise FK ids', async () => {
+    mockPrisma.workoutSession.findFirst.mockResolvedValue(null);
+    mockPrisma.workoutPlanAssignment.findFirst.mockResolvedValue(null);
+    mockPrisma.workoutSession.create.mockResolvedValue({
+      id: 'session-new',
+      dayTitle: 'Upper body strength',
+    });
+    mockPrisma.workoutSession.update.mockResolvedValue({});
+    const exerciseCreates: { data: { exerciseId: string | null } }[] = [];
+    mockPrisma.workoutSessionExercise.create.mockImplementation(
+      (args: { data: { exerciseId: string | null } }) => {
+        exerciseCreates.push(args);
+        return Promise.resolve({ id: `sex-${exerciseCreates.length}` });
+      },
+    );
+    mockPrisma.workoutSessionSet.create.mockResolvedValue({});
+    mockPrisma.workoutSession.findUnique.mockResolvedValue({
+      id: 'session-new',
+      status: 'IN_PROGRESS',
+      exercises: [],
+    });
+
+    const weeklyPlan = {
+      resolveWeeklyPlanForMember: async () => ({
+        days: [
+          {
+            dayId: 'tue',
+            restDay: false,
+            title: 'Upper body strength',
+            exercises: [
+              {
+                id: 'e1-tue-0',
+                name: 'Bench press',
+                sets: 4,
+                reps: '8',
+                restSec: 120,
+              },
+            ],
+          },
+        ],
+      }),
+    };
+    const weeklyService = new WorkoutSessionService(mockPrisma, weeklyPlan as any);
+
+    await weeklyService.startSession(
+      memberA,
+      { dayOfWeek: 'tue', dayTitle: 'Upper body strength' },
+      'gym-a',
+    );
+
+    expect(exerciseCreates).toHaveLength(1);
+    expect(exerciseCreates[0]!.data.exerciseId).toBeNull();
+  });
 });
 
