@@ -785,6 +785,31 @@ export class FitnessService {
       .sort((a, b) => a.date.localeCompare(b.date));
   }
 
+  async sumLoggedWeightKg(
+    user: AuthUserPayload,
+    from?: string,
+    to?: string,
+  ): Promise<{ totalKg: number }> {
+    const memberRole = user.roles.find((r) => r.role === Role.MEMBER);
+    if (!memberRole) throw new ForbiddenException('Members only');
+    const where: Prisma.WorkoutSetLogWhereInput = {
+      memberUserId: user.id,
+      gymId: memberRole.gymId,
+      weightKg: { gt: 0 },
+    };
+    if (from?.trim() || to?.trim()) {
+      where.logDate = {
+        ...(from?.trim() ? { gte: from.trim() } : {}),
+        ...(to?.trim() ? { lte: to.trim() } : {}),
+      };
+    }
+    const agg = await this.prisma.workoutSetLog.aggregate({
+      where,
+      _sum: { weightKg: true },
+    });
+    return { totalKg: Math.round((agg._sum.weightKg ?? 0) * 10) / 10 };
+  }
+
   async listWorkoutSetLogs(
     user: AuthUserPayload,
     dayId: string,

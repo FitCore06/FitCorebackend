@@ -24,6 +24,8 @@ export class WorkoutSessionService {
     private readonly memberWeeklyPlan: MemberWeeklyPlanService,
   ) {}
 
+  private static readonly PLAN_EXERCISE_ID_NOTE = /^__planExerciseId=([^\s]+)/;
+
   /** Weekly JSON plans use synthetic ids (e.g. e1-tue-0); only persist real Exercise UUIDs. */
   private snapshotExerciseId(raw: string | undefined | null): string | null {
     const id = raw?.trim();
@@ -36,6 +38,187 @@ export class WorkoutSessionService {
       return id;
     }
     return null;
+  }
+
+  private async resolveSessionLogDayId(
+    planDayId: string | null | undefined,
+  ): Promise<string> {
+    if (planDayId && /^(sun|mon|tue|wed|thu|fri|sat)$/i.test(planDayId)) {
+      return planDayId.toLowerCase();
+    }
+    if (planDayId) {
+      const planDay = await this.prisma.workoutPlanDay.findUnique({
+        where: { id: planDayId },
+        select: { dayOfWeek: true },
+      });
+      if (planDay?.dayOfWeek) return planDay.dayOfWeek.toLowerCase();
+    }
+    const weekdayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][
+      new Date().getDay()
+    ];
+    return weekdayKey;
+  }
+
+  private async resolveQuickLogExerciseId(
+    gymId: string,
+    user: AuthUserPayload,
+    dayId: string,
+    sessionExercise: {
+      exerciseNameSnapshot: string;
+      sortOrder: number;
+      exerciseId?: string | null;
+      notes?: string | null;
+    },
+  ): Promise<string | null> {
+    const fromNotes = sessionExercise.notes
+      ?.trim()
+      .match(WorkoutSessionService.PLAN_EXERCISE_ID_NOTE)?.[1];
+    if (fromNotes) return fromNotes;
+
+    const weekly = await this.memberWeeklyPlan.resolveWeeklyPlanForMember(
+      gymId,
+      user.id,
+      user.email,
+    );
+    const day = weekly.days?.find(
+      (d: { dayId?: string }) => d.dayId?.toLowerCase() === dayId.toLowerCase(),
+    );
+    const exercises =
+      day && !(day as { restDay?: boolean }).restDay && Array.isArray(day.exercises)
+        ? (day.exercises as { id?: string; name?: string }[])
+        : [];
+    const byOrder = exercises[sessionExercise.sortOrder];
+    if (
+      byOrder?.id &&
+      byOrder.name?.trim().toLowerCase() ===
+        sessionExercise.exerciseNameSnapshot.trim().toLowerCase()
+    ) {
+      return byOrder.id;
+    }
+    const byName = exercises.find(
+      (e) =>
+        e.name?.trim().toLowerCase() ===
+        sessionExercise.exerciseNameSnapshot.trim().toLowerCase(),
+    );
+    if (byName?.id) return byName.id;
+    return sessionExercise.exerciseId ?? null;
+  }
+
+  /** New session same day: carry over today's Quick log ticks into live session sets. */
+  private async hydrateSessionSetsFromTodayQuickLog(
+    tx: Pick<
+      PrismaService,
+      'workoutSession' | 'workoutSessionExercise' | 'workoutSessionSet' | 'workoutSetLog'
+    >,
+    input: {
+      gymId: string;
+      user: AuthUserPayload;
+      sessionId: string;
+      planDayId: string | null | undefined;
+      dtoDayOfWeek?: string;
+    },
+  ): Promise<void> {
+    const dayId = await this.resolveSessionLogDayId(
+      input.planDayId ?? input.dtoDayOfWeek ?? null,
+    );
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const logs = await tx.workoutSetLog.findMany({
+      where: {
+        gymId: input.gymId,
+        memberUserId: input.user.id,
+        logDate: dateStr,
+        dayId,
+      },
+    });
+    if (!logs.length) return;
+
+    const exercises = await tx.workoutSessionExercise.findMany({
+      where: { sessionId: input.sessionId },
+      include: { sets: { orderBy: { setNumber: 'asc' } } },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    const now = new Date();
+    for (const ex of exercises) {
+      const logExerciseId = await this.resolveQuickLogExerciseId(
+        input.gymId,
+        input.user,
+        dayId,
+        ex,
+      );
+      if (!logExerciseId) continue;
+      for (const log of logs) {
+        if (log.exerciseId !== logExerciseId) continue;
+        const setRow = ex.sets.find((s) => s.setNumber === log.setNumber);
+        if (!setRow || setRow.isCompleted) continue;
+        const parsedReps = parseInt(String(setRow.targetReps), 10);
+        await tx.workoutSessionSet.update({
+          where: { id: setRow.id },
+          data: {
+            isCompleted: true,
+            completedAt: now,
+            actualWeightKg: log.weightKg ?? setRow.actualWeightKg,
+            actualReps:
+              setRow.actualReps ??
+              (Number.isFinite(parsedReps) && parsedReps > 0 ? parsedReps : 10),
+          },
+        });
+      }
+    }
+  }
+
+  private async upsertQuickLogForCompletedSet(
+    db: Pick<PrismaService, 'workoutSetLog'>,
+    input: {
+      gymId: string;
+      user: AuthUserPayload;
+      planDayId: string | null;
+      sessionExercise: {
+        exerciseNameSnapshot: string;
+        sortOrder: number;
+        exerciseId?: string | null;
+        notes?: string | null;
+      };
+      setNumber: number;
+      actualWeightKg?: number | null;
+      targetWeightKg?: number | null;
+      logDate?: string;
+    },
+  ): Promise<void> {
+    const dayId = await this.resolveSessionLogDayId(input.planDayId);
+    const logExerciseId = await this.resolveQuickLogExerciseId(
+      input.gymId,
+      input.user,
+      dayId,
+      input.sessionExercise,
+    );
+    if (!logExerciseId) return;
+
+    const dateStr =
+      input.logDate?.trim() || new Date().toISOString().slice(0, 10);
+    const weightKg =
+      input.actualWeightKg ?? input.targetWeightKg ?? null;
+    await db.workoutSetLog.upsert({
+      where: {
+        memberUserId_logDate_dayId_exerciseId_setNumber: {
+          memberUserId: input.user.id,
+          logDate: dateStr,
+          dayId,
+          exerciseId: logExerciseId,
+          setNumber: input.setNumber,
+        },
+      },
+      create: {
+        gymId: input.gymId,
+        memberUserId: input.user.id,
+        logDate: dateStr,
+        dayId,
+        exerciseId: logExerciseId,
+        setNumber: input.setNumber,
+        weightKg,
+      },
+      update: { weightKg },
+    });
   }
 
   private async trainerReadScope(
@@ -544,6 +727,7 @@ export class WorkoutSessionService {
               targetSets: Math.max(1, planEx.sets ?? 3),
               targetReps: String(planEx.reps ?? '10'),
               restSeconds: planEx.restSec ?? 90,
+              notes: `__planExerciseId=${planEx.id}`,
             },
           });
           const totalSets = Math.max(1, planEx.sets ?? 3);
@@ -559,6 +743,18 @@ export class WorkoutSessionService {
           }
         }
       }
+
+      const current = await tx.workoutSession.findUnique({
+        where: { id: session.id },
+        select: { planDayId: true },
+      });
+      await this.hydrateSessionSetsFromTodayQuickLog(tx, {
+        gymId,
+        user,
+        sessionId: session.id,
+        planDayId: current?.planDayId,
+        dtoDayOfWeek: dto.dayOfWeek,
+      });
 
       return tx.workoutSession.findUnique({
         where: { id: session.id },
@@ -597,7 +793,26 @@ export class WorkoutSessionService {
       return { activeSession: null };
     }
 
-    return { activeSession: session };
+    await this.prisma.$transaction(async (tx) => {
+      await this.hydrateSessionSetsFromTodayQuickLog(tx, {
+        gymId,
+        user,
+        sessionId: session.id,
+        planDayId: session.planDayId,
+      });
+    });
+
+    const refreshed = await this.prisma.workoutSession.findFirst({
+      where: { id: session.id },
+      include: {
+        exercises: {
+          include: { sets: { orderBy: { setNumber: 'asc' } } },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+    });
+
+    return { activeSession: refreshed ?? session };
   }
 
   // --- 3. GET SESSION BY ID ---
@@ -654,6 +869,12 @@ export class WorkoutSessionService {
         status: 'PAUSED',
         pausedAt: new Date(),
       },
+      include: {
+        exercises: {
+          include: { sets: { orderBy: { setNumber: 'asc' } } },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
     });
   }
 
@@ -685,6 +906,12 @@ export class WorkoutSessionService {
         status: 'IN_PROGRESS',
         pausedAt: null,
         accumulatedPausedSeconds: session.accumulatedPausedSeconds + additionalPausedSeconds,
+      },
+      include: {
+        exercises: {
+          include: { sets: { orderBy: { setNumber: 'asc' } } },
+          orderBy: { sortOrder: 'asc' },
+        },
       },
     });
   }
@@ -754,7 +981,7 @@ export class WorkoutSessionService {
       throw new NotFoundException('Set not found in this session');
     }
 
-    return this.prisma.workoutSessionSet.update({
+    const updated = await this.prisma.workoutSessionSet.update({
       where: { id: setId },
       data: {
         actualReps: dto.actualReps ?? setRecord.actualReps ?? (parseInt(setRecord.targetReps) || 10),
@@ -764,6 +991,18 @@ export class WorkoutSessionService {
         completedAt: new Date(),
       },
     });
+
+    await this.upsertQuickLogForCompletedSet(this.prisma, {
+      gymId,
+      user,
+      planDayId: session.planDayId,
+      sessionExercise: setRecord.sessionExercise,
+      setNumber: setRecord.setNumber,
+      actualWeightKg: updated.actualWeightKg,
+      targetWeightKg: setRecord.targetWeightKg,
+    });
+
+    return updated;
   }
 
   // --- 8. FINISH SESSION ---
@@ -804,43 +1043,36 @@ export class WorkoutSessionService {
         additionalPaused = Math.max(0, Math.floor((now.getTime() - session.pausedAt.getTime()) / 1000));
       }
 
-      // Safe integration with legacy WorkoutSetLog table (preserving historical logs)
-      const dateStr = now.toISOString().slice(0, 10);
-      const dayId =
-        session.planDayId &&
-        /^(sun|mon|tue|wed|thu|fri|sat)$/i.test(session.planDayId)
-          ? session.planDayId.toLowerCase()
-          : 'session-day';
-
       for (const ex of session.exercises) {
-        if (ex.exerciseId) {
-          for (const s of ex.sets) {
-            if (s.isCompleted) {
-              await tx.workoutSetLog.upsert({
-                where: {
-                  memberUserId_logDate_dayId_exerciseId_setNumber: {
-                    memberUserId: user.id,
-                    logDate: dateStr,
-                    dayId,
-                    exerciseId: ex.exerciseId,
-                    setNumber: s.setNumber,
-                  },
-                },
-                create: {
-                  gymId,
-                  memberUserId: user.id,
-                  logDate: dateStr,
-                  dayId,
-                  exerciseId: ex.exerciseId,
-                  setNumber: s.setNumber,
-                  weightKg: s.actualWeightKg ?? s.targetWeightKg,
-                },
-                update: {
-                  weightKg: s.actualWeightKg ?? s.targetWeightKg,
-                },
-              });
-            }
+        for (const s of ex.sets) {
+          if (!s.isCompleted) continue;
+          if (s.actualReps == null || s.actualReps <= 0) {
+            const parsed = parseInt(String(s.targetReps), 10);
+            const actualReps =
+              Number.isFinite(parsed) && parsed > 0 ? parsed : 10;
+            await tx.workoutSessionSet.update({
+              where: { id: s.id },
+              data: { actualReps },
+            });
+            s.actualReps = actualReps;
           }
+        }
+      }
+
+      const dateStr = now.toISOString().slice(0, 10);
+      for (const ex of session.exercises) {
+        for (const s of ex.sets) {
+          if (!s.isCompleted) continue;
+          await this.upsertQuickLogForCompletedSet(tx as Pick<PrismaService, 'workoutSetLog'>, {
+            gymId,
+            user,
+            planDayId: session.planDayId,
+            sessionExercise: ex,
+            setNumber: s.setNumber,
+            actualWeightKg: s.actualWeightKg,
+            targetWeightKg: s.targetWeightKg,
+            logDate: dateStr,
+          });
         }
       }
 

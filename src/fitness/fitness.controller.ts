@@ -151,6 +151,16 @@ export class FitnessController {
     return this.fitness.workoutSetActivityByDate(req.user, from, to);
   }
 
+  @Get('logs/workout/weight-total')
+  @Roles(Role.MEMBER)
+  workoutWeightTotal(
+    @Req() req: AuthedRequest,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.fitness.sumLoggedWeightKg(req.user, from, to);
+  }
+
   @Get('logs/workout')
   @Roles(Role.MEMBER)
   workoutLogs(
