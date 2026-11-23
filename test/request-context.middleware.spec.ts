@@ -37,6 +37,19 @@ describe('requestContextMiddleware', () => {
     expect(res.setHeader).toHaveBeenCalledWith('X-Request-Id', capturedRequestId);
   });
 
+  it('rejects when next() throws synchronously', async () => {
+    const { req, res } = mockReqRes();
+    const boom = new Error('sync');
+    const next = vi.fn((err?: unknown) => {
+      if (err !== undefined) return;
+      throw boom;
+    }) as unknown as NextFunction;
+
+    const result = requestContextMiddleware(req, res, next);
+    await expect(Promise.resolve(result)).rejects.toBe(boom);
+    expect(next).toHaveBeenCalledWith(boom);
+  });
+
   it('forwards rejected async next() to the returned promise', async () => {
     const { req, res } = mockReqRes();
     const boom = new Error('downstream');
