@@ -49,6 +49,23 @@ tar -xzf "$BUNDLE" -C "$APP_DIR"
 
 if [ -x "$APP_DIR/node_modules/.bin/prisma" ]; then
   ( cd "$APP_DIR" && ./node_modules/.bin/prisma generate )
+  migrate_url="${MIGRATE_DATABASE_URL:-$DATABASE_URL}"
+  if [ -n "$migrate_url" ]; then
+    echo "==> prisma migrate deploy (from VM)"
+    attempt=1
+    while [ "$attempt" -le 6 ]; do
+      if ( cd "$APP_DIR" && DATABASE_URL="$migrate_url" ./node_modules/.bin/prisma migrate deploy ); then
+        break
+      fi
+      if [ "$attempt" -eq 6 ]; then
+        echo "ERROR: prisma migrate deploy failed after 6 attempts" >&2
+        exit 1
+      fi
+      echo "migrate retry ${attempt}/6 in 15s..."
+      sleep 15
+      attempt=$((attempt + 1))
+    done
+  fi
 fi
 
 ENV_FILE="$APP_DIR/.env"

@@ -18,64 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Migrate (Neon / prod DB)
-        run: |
-          npm ci
-          npx prisma generate
-          if [ "${ORACLE_SKIP_MIGRATE:-}" = "true" ] || [ "${ORACLE_SKIP_MIGRATE:-}" = "1" ]; then
-            echo "Skipping CI migrate (ORACLE_SKIP_MIGRATE). DB must already be up to date."
-            exit 0
-          fi
-          trim() { printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
-          migrate_url="$(trim "${MIGRATE_DATABASE_URL:-}")"
-          database_url="$(trim "${DATABASE_URL:-}")"
-          if [ -z "$migrate_url" ] && [ -z "$database_url" ]; then
-            echo "::error::No DB secrets visible to Actions. Repo: FitCore06/FitCorebackend → Settings → Secrets and variables → Actions → Repository secrets. Add MIGRATE_DATABASE_URL (Neon direct). Or set ORACLE_SKIP_MIGRATE=1."
-            exit 1
-          fi
-          if [ -z "$migrate_url" ]; then
-            echo "WARN: MIGRATE_DATABASE_URL empty; using DATABASE_URL for migrate (prefer direct URL in MIGRATE_DATABASE_URL)."
-          fi
-          sample="${migrate_url:-$database_url}"
-          case "$sample" in
-            postgresql://*|postgres://*) ;;
-            *)
-              echo "::error::DB secret must start with postgresql:// (got length ${#sample}). Use Neon Connect → copy full URI into Repository secret, not Variables tab."
-              exit 1
-              ;;
-          esac
-          host="$(printf '%s' "$sample" | sed -n 's|.*@\([^/:]*\).*|\1|p')"
-          echo "Migrate target host: ${host:-<parse failed>}"
-          case "$host" in
-            ep-xxxx*|*YOUR_*|*example*|'' )
-              if [ -z "$host" ]; then
-                echo "::error::Could not parse host from DB secret (missing user@host?). Paste full Neon Direct URI into MIGRATE_DATABASE_URL on repo FitCorebackend."
-              else
-                echo "::error::DB host looks like a placeholder ($host). Paste Neon Connect → Direct."
-              fi
-              exit 1
-              ;;
-          esac
-          attempt=1
-          max=6
-          while [ "$attempt" -le "$max" ]; do
-            echo "Migrate attempt ${attempt}/${max}..."
-            if npm run render:migrate; then
-              exit 0
-            fi
-            if [ "$attempt" -eq "$max" ]; then
-              echo "::error::Migrate failed after ${max} attempts (Neon cold start / URL / password)"
-              exit 1
-            fi
-            echo "Waiting 20s for Neon compute..."
-            sleep 20
-            attempt=$((attempt + 1))
-          done
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          MIGRATE_DATABASE_URL: ${{ secrets.MIGRATE_DATABASE_URL }}
-          ORACLE_SKIP_MIGRATE: ${{ secrets.ORACLE_SKIP_MIGRATE }}
-
+      # GitHub-hosted runners often hit Neon P1001 on direct endpoints; migrate on the Oracle VM instead.
       - name: Build linux bundle (Docker)
         run: |
           docker run --rm --platform linux/amd64 \
@@ -96,6 +39,7 @@ jobs:
         uses: appleboy/ssh-action@v1.2.0
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MIGRATE_DATABASE_URL: ${{ secrets.MIGRATE_DATABASE_URL }}
           JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET }}
           CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
           APP_PUBLIC_URL: ${{ secrets.APP_PUBLIC_URL }}
@@ -109,7 +53,7 @@ jobs:
           username: ${{ secrets.ORACLE_SSH_USER }}
           key: ${{ secrets.ORACLE_SSH_KEY }}
           envs: >-
-            DATABASE_URL,JWT_ACCESS_SECRET,CORS_ORIGINS,APP_PUBLIC_URL,
+            DATABASE_URL,MIGRATE_DATABASE_URL,JWT_ACCESS_SECRET,CORS_ORIGINS,APP_PUBLIC_URL,
             FITCORE_AUTOMATION_SECRET,ATHRA_AUTOMATION_SECRET,
             RAZORPAY_KEY_ID,RAZORPAY_KEY_SECRET,RAZORPAY_WEBHOOK_SECRET
           script: |
