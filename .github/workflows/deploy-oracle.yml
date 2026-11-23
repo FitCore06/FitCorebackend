@@ -35,9 +35,15 @@ jobs:
           mkdir -p "$HOME/.ssh"
           keyfile="$HOME/.ssh/oracle_deploy_key"
           if [ -n "${ORACLE_SSH_KEY_B64:-}" ]; then
-            printf '%s' "$ORACLE_SSH_KEY_B64" | tr -d '[:space:]' | base64 -d > "$keyfile"
+            b64="$(printf '%s' "$ORACLE_SSH_KEY_B64" | tr -d '\n\r\t ')"
+            if ! printf '%s' "$b64" | base64 -d > "$keyfile" 2>/dev/null; then
+              if ! printf '%s' "$b64" | openssl base64 -d -A > "$keyfile" 2>/dev/null; then
+                echo "::error::ORACLE_SSH_KEY_B64 invalid base64. Delete the secret and use ORACLE_SSH_KEY (raw PEM) or regenerate: base64 < key.key | tr -d '\\n'"
+                exit 1
+              fi
+            fi
           elif [ -n "${ORACLE_SSH_KEY:-}" ]; then
-            printf '%s' "$ORACLE_SSH_KEY" > "$keyfile"
+            printf '%s\n' "$ORACLE_SSH_KEY" > "$keyfile"
           else
             echo "::error::Set ORACLE_SSH_KEY (private PEM) or ORACLE_SSH_KEY_B64 in repository secrets."
             exit 1
