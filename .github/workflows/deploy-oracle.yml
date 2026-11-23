@@ -26,7 +26,21 @@ jobs:
           fi
           npm ci
           npx prisma generate
-          npm run render:migrate
+          attempt=1
+          max=6
+          while [ "$attempt" -le "$max" ]; do
+            echo "Migrate attempt ${attempt}/${max}..."
+            if npm run render:migrate; then
+              exit 0
+            fi
+            if [ "$attempt" -eq "$max" ]; then
+              echo "::error::Migrate failed after ${max} attempts (Neon cold start / URL / password)"
+              exit 1
+            fi
+            echo "Waiting 20s for Neon compute..."
+            sleep 20
+            attempt=$((attempt + 1))
+          done
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MIGRATE_DATABASE_URL: ${{ secrets.MIGRATE_DATABASE_URL }}

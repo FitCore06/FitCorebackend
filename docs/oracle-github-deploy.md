@@ -23,7 +23,12 @@ Optional: `APP_PUBLIC_URL`, `FITCORE_AUTOMATION_SECRET`, Razorpay keys.
 1. **Actions** tab → **Deploy API to Oracle** → green on last `main` push.
 2. `curl http://ORACLE_HOST:3001/api/v1/health`
 
-If the run fails in **~30s** on **Migrate (Neon / prod DB)**: secrets missing/wrong — set `MIGRATE_DATABASE_URL` + `DATABASE_URL` in repo **Settings → Secrets → Actions**.
+If the run fails on **Migrate (Neon / prod DB)**:
+
+- Missing secret → set `MIGRATE_DATABASE_URL` + `DATABASE_URL`.
+- `P1001 Can't reach database server` → Neon was idle (scale-to-zero). Re-run workflow; CI now retries up to 6×. Open Neon console → **production** branch → confirm compute **Active** before deploy.
+- Use **direct** host (no `-pooler`). URL should include `sslmode=require&schema=public`. Remove `channel_binding=require` from the secret if present.
+- Wrong password / rotated Neon password → update `MIGRATE_DATABASE_URL` in GitHub Secrets.
 
 ## Manual run
 
