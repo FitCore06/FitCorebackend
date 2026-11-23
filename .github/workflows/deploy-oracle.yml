@@ -22,7 +22,7 @@ jobs:
       - name: Build linux bundle (Docker)
         run: |
           docker run --rm --platform linux/amd64 \
-            -v "$PWD:/app" -w /app node:20-bookworm \
+            -v "$PWD:/app" -w /app node:22-bookworm \
             bash -ec 'npm ci && npm run build && npm prune --omit=dev'
           tar -czf athra-api-linux-amd64.tar.gz dist node_modules package.json package-lock.json prisma
 

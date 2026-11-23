@@ -4,7 +4,7 @@ set -euo pipefail
 
 APP_DIR="${APP_DIR:-$HOME/athra/api}"
 BUNDLE="${BUNDLE:-/tmp/athra-api-linux-amd64.tar.gz}"
-NODE_VER="${NODE_VER:-20.18.1}"
+NODE_VER="${NODE_VER:-22.14.0}"
 NODE_ROOT="${NODE_ROOT:-$HOME/.local/node}"
 
 require_env() {
