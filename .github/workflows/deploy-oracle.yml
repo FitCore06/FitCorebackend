@@ -1,0 +1,71 @@
+# Push to main → build linux bundle → deploy to Oracle VM.
+# Secrets: ORACLE_HOST, ORACLE_SSH_USER, ORACLE_SSH_KEY, DATABASE_URL,
+#          JWT_ACCESS_SECRET, CORS_ORIGINS (+ optional APP_PUBLIC_URL, etc.)
+name: Deploy API to Oracle
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-oracle-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Migrate (Neon / prod DB)
+        run: npm ci && npm run render:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Build linux bundle (Docker)
+        run: |
+          docker run --rm --platform linux/amd64 \
+            -v "$PWD:/app" -w /app node:20-bookworm \
+            bash -ec 'npm ci && npm run build && npm prune --omit=dev'
+          tar -czf athra-api-linux-amd64.tar.gz dist node_modules package.json package-lock.json prisma
+
+      - name: Upload bundle to VM
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_SSH_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          source: "athra-api-linux-amd64.tar.gz,scripts/oracle-bootstrap-prebuilt.sh"
+          target: /tmp/
+
+      - name: Install on VM and restart
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET }}
+          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
+          APP_PUBLIC_URL: ${{ secrets.APP_PUBLIC_URL }}
+          FITCORE_AUTOMATION_SECRET: ${{ secrets.FITCORE_AUTOMATION_SECRET }}
+          ATHRA_AUTOMATION_SECRET: ${{ secrets.ATHRA_AUTOMATION_SECRET }}
+          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
+          RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
+          RAZORPAY_WEBHOOK_SECRET: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_SSH_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          envs: >-
+            DATABASE_URL,JWT_ACCESS_SECRET,CORS_ORIGINS,APP_PUBLIC_URL,
+            FITCORE_AUTOMATION_SECRET,ATHRA_AUTOMATION_SECRET,
+            RAZORPAY_KEY_ID,RAZORPAY_KEY_SECRET,RAZORPAY_WEBHOOK_SECRET
+          script: |
+            set -euo pipefail
+            export BUNDLE=/tmp/athra-api-linux-amd64.tar.gz
+            chmod +x /tmp/scripts/oracle-bootstrap-prebuilt.sh
+            bash /tmp/scripts/oracle-bootstrap-prebuilt.sh
+
+      - name: Public health check
+        run: |
+          sleep 5
+          curl -fsS --max-time 30 "http://${{ secrets.ORACLE_HOST }}:3001/api/v1/health"
