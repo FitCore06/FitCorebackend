@@ -26,7 +26,6 @@ export function requestContextMiddleware(
         return Promise.resolve(next());
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
-        next(error);
         return Promise.reject(error);
       }
     },

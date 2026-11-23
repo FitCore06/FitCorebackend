@@ -40,14 +40,13 @@ describe('requestContextMiddleware', () => {
   it('rejects when next() throws synchronously', async () => {
     const { req, res } = mockReqRes();
     const boom = new Error('sync');
-    const next = vi.fn((err?: unknown) => {
-      if (err !== undefined) return;
+    const next = vi.fn(() => {
       throw boom;
     }) as unknown as NextFunction;
 
     const result = requestContextMiddleware(req, res, next);
     await expect(Promise.resolve(result)).rejects.toBe(boom);
-    expect(next).toHaveBeenCalledWith(boom);
+    expect(next).toHaveBeenCalledTimes(1);
   });
 
   it('forwards rejected async next() to the returned promise', async () => {
