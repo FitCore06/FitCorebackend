@@ -38,19 +38,24 @@ jobs:
             b64="$(printf '%s' "$ORACLE_SSH_KEY_B64" | tr -d '\n\r\t ')"
             if ! printf '%s' "$b64" | base64 -d > "$keyfile" 2>/dev/null; then
               if ! printf '%s' "$b64" | openssl base64 -d -A > "$keyfile" 2>/dev/null; then
-                echo "::error::ORACLE_SSH_KEY_B64 invalid base64. Delete the secret and use ORACLE_SSH_KEY (raw PEM) or regenerate: base64 < key.key | tr -d '\\n'"
+                echo "::error::ORACLE_SSH_KEY_B64 invalid. On Mac run: ./scripts/encode-oracle-ssh-secret.sh ~/Downloads/ssh-key-2026-11-23.key"
                 exit 1
               fi
             fi
           elif [ -n "${ORACLE_SSH_KEY:-}" ]; then
-            printf '%s\n' "$ORACLE_SSH_KEY" > "$keyfile"
+            raw="$(printf '%s' "$ORACLE_SSH_KEY")"
+            if printf '%s' "$raw" | grep -q '\\n'; then
+              printf '%b' "$(printf '%s' "$raw" | sed 's/\\n/\n/g')" > "$keyfile"
+            else
+              printf '%s' "$raw" > "$keyfile"
+            fi
           else
-            echo "::error::Set ORACLE_SSH_KEY (private PEM) or ORACLE_SSH_KEY_B64 in repository secrets."
+            echo "::error::Set ORACLE_SSH_KEY_B64 (recommended) or ORACLE_SSH_KEY. See scripts/encode-oracle-ssh-secret.sh"
             exit 1
           fi
           chmod 600 "$keyfile"
           if ! ssh-keygen -y -f "$keyfile" > /dev/null 2>&1; then
-            echo "::error::SSH key invalid (ssh: no key found). Use private key BEGIN…END, not .pub. Or set ORACLE_SSH_KEY_B64 — see docs/oracle-github-deploy.md"
+            echo "::error::SSH key invalid. Delete ORACLE_SSH_KEY, run scripts/encode-oracle-ssh-secret.sh on Mac, set only ORACLE_SSH_KEY_B64."
             exit 1
           fi
           echo "SSH private key OK."
