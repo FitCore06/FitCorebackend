@@ -15,6 +15,10 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      # Stable deployment target. Secrets can override these values if the VM changes.
+      ORACLE_HOST: ${{ secrets.ORACLE_HOST || '80.225.218.137' }}
+      ORACLE_SSH_USER: ${{ secrets.ORACLE_SSH_USER || 'ubuntu' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -143,8 +147,6 @@ jobs:
 
       - name: Upload bundle and install on VM
         env:
-          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
-          ORACLE_SSH_USER: ${{ secrets.ORACLE_SSH_USER }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MIGRATE_DATABASE_URL: ${{ secrets.MIGRATE_DATABASE_URL }}
           JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET }}
@@ -193,4 +195,4 @@ jobs:
       - name: Public health check
         run: |
           sleep 5
-          curl -fsS --max-time 30 "http://${{ secrets.ORACLE_HOST }}:3001/api/v1/health"
+          curl -fsS --max-time 30 "http://${ORACLE_HOST}:3001/api/v1/health"
