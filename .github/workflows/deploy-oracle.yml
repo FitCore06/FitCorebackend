@@ -34,36 +34,81 @@ jobs:
           set -euo pipefail
           mkdir -p "$HOME/.ssh"
           keyfile="$HOME/.ssh/oracle_deploy_key"
-          if [ -n "${ORACLE_SSH_KEY_B64:-}" ]; then
-            b64="$(printf '%s' "$ORACLE_SSH_KEY_B64" | tr -d '\n\r\t ')"
-            if ! printf '%s' "$b64" | base64 -d > "$keyfile" 2>/dev/null; then
-              if ! printf '%s' "$b64" | openssl base64 -d -A > "$keyfile" 2>/dev/null; then
-                echo "::error::ORACLE_SSH_KEY_B64 invalid. On Mac run: ./scripts/encode-oracle-ssh-secret.sh ~/Downloads/ssh-key-2026-11-23.key"
-                exit 1
+
+          normalize_keyfile() {
+            tr -d '\r' < "$keyfile" | sed -e '1s/^\xEF\xBB\xBF//' -e '/^[[:space:]]*$/d' > "${keyfile}.norm"
+            mv "${keyfile}.norm" "$keyfile"
+          }
+
+          write_raw_key() {
+            local raw="$1"
+            raw="${raw#\"}"; raw="${raw%\"}"
+            raw="${raw//$'\\n'/$'\n'}"
+            printf '%b' "$raw" > "$keyfile"
+            normalize_keyfile
+            if ! grep -q 'BEGIN .*PRIVATE KEY' "$keyfile"; then
+              local oneline
+              oneline="$(tr -d '\n' < "$keyfile")"
+              if printf '%s' "$oneline" | grep -qE '^[A-Za-z0-9+/=]+$'; then
+                if printf '%s' "$oneline" | base64 -d > "${keyfile}.dec" 2>/dev/null; then
+                  mv "${keyfile}.dec" "$keyfile"
+                  normalize_keyfile
+                fi
               fi
             fi
+          }
+
+          write_b64_key() {
+            local b64
+            b64="$(printf '%s' "$1" | tr -d '\n\r\t ')"
+            if ! printf '%s' "$b64" | base64 -d > "$keyfile" 2>/dev/null; then
+              if ! printf '%s' "$b64" | openssl base64 -d -A > "$keyfile" 2>/dev/null; then
+                return 1
+              fi
+            fi
+            normalize_keyfile
+            return 0
+          }
+
+          key_ok() {
+            grep -qE 'BEGIN (ENCRYPTED )?(RSA |EC |DSA |OPENSSH )?PRIVATE KEY' "$keyfile" \
+              && ! grep -qE '^ssh-(rsa|ed25519|ecdsa)[[:space:]]' "$keyfile" \
+              && ssh-keygen -y -f "$keyfile" > /dev/null 2>&1
+          }
+
+          source_used=""
+          if [ -n "${ORACLE_SSH_KEY_B64:-}" ]; then
+            if write_b64_key "$ORACLE_SSH_KEY_B64" && key_ok; then
+              source_used="ORACLE_SSH_KEY_B64"
+            elif [ -n "${ORACLE_SSH_KEY:-}" ]; then
+              echo "::warning::ORACLE_SSH_KEY_B64 invalid or not a private key; trying ORACLE_SSH_KEY."
+              write_raw_key "$ORACLE_SSH_KEY"
+              source_used="ORACLE_SSH_KEY"
+            else
+              echo "::error::ORACLE_SSH_KEY_B64 invalid. On Mac: ./scripts/encode-oracle-ssh-secret.sh ~/Downloads/ssh-key-*.key"
+              exit 1
+            fi
           elif [ -n "${ORACLE_SSH_KEY:-}" ]; then
-            # GitHub Secrets may contain either real multiline text or literal \n escape sequences.
-            raw_key="${ORACLE_SSH_KEY//$'\\n'/\n}"
-            printf '%b' "$raw_key" > "$keyfile"
-            printf '\n' >> "$keyfile"
+            write_raw_key "$ORACLE_SSH_KEY"
+            source_used="ORACLE_SSH_KEY"
           else
-            echo "::error::Set ORACLE_SSH_KEY (private PEM/OpenSSH key) or ORACLE_SSH_KEY_B64 in repository secrets."
+            echo "::error::Set ORACLE_SSH_KEY_B64 (recommended) or ORACLE_SSH_KEY. See scripts/encode-oracle-ssh-secret.sh"
             exit 1
           fi
 
           chmod 600 "$keyfile"
-          if grep -qE '^-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----$|^ssh-(rsa|ed25519|ecdsa)' "$keyfile"; then
-            :
-          else
-            echo "::error::SSH key secret is missing a private-key header or is a public key. Store the private key contents, not the .pub file."
+          if ! key_ok; then
+            bytes="$(wc -c < "$keyfile" | tr -d ' ')"
+            has_begin="no"
+            grep -q 'BEGIN .*PRIVATE KEY' "$keyfile" && has_begin="yes"
+            looks_public="no"
+            grep -qE '^ssh-(rsa|ed25519|ecdsa)[[:space:]]' "$keyfile" && looks_public="yes"
+            echo "::error::SSH key from ${source_used} invalid (bytes=${bytes}, begin_private_key=${has_begin}, looks_public=${looks_public})."
+            echo "::error::Use Oracle .key download (BEGIN…PRIVATE KEY…END), not .pub. Prefer ORACLE_SSH_KEY_B64 only — delete the other secret."
+            echo "::error::Passphrase-protected keys fail in CI; use an unencrypted private key."
             exit 1
           fi
-          if ! ssh-keygen -y -f "$keyfile" > /dev/null 2>&1; then
-            echo "::error::SSH key invalid (ssh: no key found). Use the private key BEGIN…END block, not .pub."
-            exit 1
-          fi
-          echo "SSH private key OK."
+          echo "SSH private key OK (${source_used})."
 
       - name: Upload bundle to VM
         uses: appleboy/scp-action@v0.1.7
