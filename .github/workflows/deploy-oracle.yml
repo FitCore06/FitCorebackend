@@ -139,19 +139,12 @@ jobs:
             exit 1
           fi
           echo "SSH private key OK (${source_used})."
+          ssh-keygen -lf "$keyfile"
 
-      - name: Upload bundle to VM
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.ORACLE_HOST }}
-          username: ${{ secrets.ORACLE_SSH_USER }}
-          key_path: /github/runner_temp/oracle_deploy_key
-          source: "athra-api-linux-amd64.tar.gz,scripts/oracle-bootstrap-prebuilt.sh"
-          target: /tmp/
-
-      - name: Install on VM and restart
-        uses: appleboy/ssh-action@v1.2.0
+      - name: Upload bundle and install on VM
         env:
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+          ORACLE_SSH_USER: ${{ secrets.ORACLE_SSH_USER }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MIGRATE_DATABASE_URL: ${{ secrets.MIGRATE_DATABASE_URL }}
           JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET }}
@@ -162,19 +155,40 @@ jobs:
           RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
           RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
           RAZORPAY_WEBHOOK_SECRET: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
-        with:
-          host: ${{ secrets.ORACLE_HOST }}
-          username: ${{ secrets.ORACLE_SSH_USER }}
-          key_path: /github/runner_temp/oracle_deploy_key
-          envs: >-
-            DATABASE_URL,MIGRATE_DATABASE_URL,JWT_ACCESS_SECRET,CORS_ORIGINS,APP_PUBLIC_URL,
-            FITCORE_AUTOMATION_SECRET,ATHRA_AUTOMATION_SECRET,
-            RAZORPAY_KEY_ID,RAZORPAY_KEY_SECRET,RAZORPAY_WEBHOOK_SECRET
-          script: |
-            set -euo pipefail
-            export BUNDLE=/tmp/athra-api-linux-amd64.tar.gz
-            chmod +x /tmp/scripts/oracle-bootstrap-prebuilt.sh
-            bash /tmp/scripts/oracle-bootstrap-prebuilt.sh
+        run: |
+          set -euo pipefail
+          key="${RUNNER_TEMP}/oracle_deploy_key"
+          chmod 600 "$key"
+          if [ -z "${ORACLE_HOST:-}" ] || [ -z "${ORACLE_SSH_USER:-}" ]; then
+            echo "::error::Set ORACLE_HOST and ORACLE_SSH_USER. Oracle Ubuntu images use user ubuntu."
+            exit 1
+          fi
+          echo "SSH target: ${ORACLE_SSH_USER}@${ORACLE_HOST}"
+          ssh_opts=(-i "$key" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=25)
+          target="${ORACLE_SSH_USER}@${ORACLE_HOST}"
+          if ! ssh "${ssh_opts[@]}" "$target" 'mkdir -p /tmp/scripts && echo ssh-ok'; then
+            echo "::error::SSH auth failed. Check ORACLE_SSH_USER (ubuntu) and that this key is in the VM authorized_keys."
+            ssh-keygen -lf "$key"
+            exit 1
+          fi
+          scp "${ssh_opts[@]}" athra-api-linux-amd64.tar.gz "${target}:/tmp/athra-api-linux-amd64.tar.gz"
+          scp "${ssh_opts[@]}" scripts/oracle-bootstrap-prebuilt.sh "${target}:/tmp/scripts/oracle-bootstrap-prebuilt.sh"
+          ssh "${ssh_opts[@]}" "$target" "bash -s" <<EOF
+          set -euo pipefail
+          export DATABASE_URL=$(printf '%q' "$DATABASE_URL")
+          export MIGRATE_DATABASE_URL=$(printf '%q' "$MIGRATE_DATABASE_URL")
+          export JWT_ACCESS_SECRET=$(printf '%q' "$JWT_ACCESS_SECRET")
+          export CORS_ORIGINS=$(printf '%q' "$CORS_ORIGINS")
+          export APP_PUBLIC_URL=$(printf '%q' "$APP_PUBLIC_URL")
+          export FITCORE_AUTOMATION_SECRET=$(printf '%q' "$FITCORE_AUTOMATION_SECRET")
+          export ATHRA_AUTOMATION_SECRET=$(printf '%q' "$ATHRA_AUTOMATION_SECRET")
+          export RAZORPAY_KEY_ID=$(printf '%q' "$RAZORPAY_KEY_ID")
+          export RAZORPAY_KEY_SECRET=$(printf '%q' "$RAZORPAY_KEY_SECRET")
+          export RAZORPAY_WEBHOOK_SECRET=$(printf '%q' "$RAZORPAY_WEBHOOK_SECRET")
+          export BUNDLE=/tmp/athra-api-linux-amd64.tar.gz
+          chmod +x /tmp/scripts/oracle-bootstrap-prebuilt.sh
+          bash /tmp/scripts/oracle-bootstrap-prebuilt.sh
+          EOF
 
       - name: Public health check
         run: |
