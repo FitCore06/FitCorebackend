@@ -75,10 +75,7 @@ export class AutomationService {
     if (!tenant) throw new NotFoundException('Gym not found');
 
     const today = utcMidnight(new Date());
-    const dailyUntilPaid = isExpiryNotifyDailyUntilPaid(
-      this.config.get<string>('ATHRA_EXPIRY_NOTIFY_DAILY') ||
-        this.config.get<string>('FITCORE_EXPIRY_NOTIFY_DAILY'),
-    );
+    const dailyUntilPaid = this.isExpiryDailyUntilPaid();
     const leadDays = expiryNotifyLeadDays(uniqueDays);
     const horizon = new Date(today);
     horizon.setUTCDate(horizon.getUTCDate() + leadDays);
@@ -106,19 +103,10 @@ export class AutomationService {
         });
 
     const memberIds = [...new Set(expiring.map((row) => row.memberUserId))];
-    const pendingPayments =
-      memberIds.length && dailyUntilPaid
-        ? await this.prisma.gymPayment.findMany({
-            where: {
-              gymId: tenant.id,
-              memberUserId: { in: memberIds },
-              status: 'pending',
-              membershipPlanId: { not: null },
-            },
-            select: { memberUserId: true },
-          })
-        : [];
-    const pendingMemberIds = new Set(pendingPayments.map((p) => p.memberUserId));
+    const pendingMemberIds = await this.pendingMembershipPaymentMemberIds(
+      tenant.id,
+      memberIds,
+    );
 
     const dedupeKeys = [
       ...new Set(
@@ -269,18 +257,10 @@ export class AutomationService {
     const alreadyRecorded = new Set(existingRows.map((row) => row.dedupeKey));
     const byMembershipId = new Map(memberships.map((row) => [row.id, row]));
     const memberIds = [...new Set(memberships.map((row) => row.memberUserId))];
-    const pendingPayments = memberIds.length
-      ? await this.prisma.gymPayment.findMany({
-          where: {
-            gymId: tenant.id,
-            memberUserId: { in: memberIds },
-            status: 'pending',
-            membershipPlanId: { not: null },
-          },
-          select: { memberUserId: true },
-        })
-      : [];
-    const pendingMemberIds = new Set(pendingPayments.map((p) => p.memberUserId));
+    const pendingMemberIds = await this.pendingMembershipPaymentMemberIds(
+      tenant.id,
+      memberIds,
+    );
 
     const data = keys
       .map((key) => {
@@ -327,6 +307,32 @@ export class AutomationService {
     );
 
     return { recorded: result.count };
+  }
+
+  private isExpiryDailyUntilPaid(): boolean {
+    return isExpiryNotifyDailyUntilPaid(
+      this.config.get<string>('ATHRA_EXPIRY_NOTIFY_DAILY') ||
+        this.config.get<string>('FITCORE_EXPIRY_NOTIFY_DAILY'),
+    );
+  }
+
+  private async pendingMembershipPaymentMemberIds(
+    gymId: string,
+    memberUserIds: string[],
+  ): Promise<Set<string>> {
+    if (!memberUserIds.length || !this.isExpiryDailyUntilPaid()) {
+      return new Set();
+    }
+    const pendingPayments = await this.prisma.gymPayment.findMany({
+      where: {
+        gymId,
+        memberUserId: { in: memberUserIds },
+        status: 'pending',
+        membershipPlanId: { not: null },
+      },
+      select: { memberUserId: true },
+    });
+    return new Set(pendingPayments.map((p) => p.memberUserId));
   }
 }
 
