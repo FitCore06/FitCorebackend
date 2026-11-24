@@ -2,8 +2,17 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ExpoPushService } from '../notifications/expo-push.service.js';
+import {
+  expiryNotifyLeadDays,
+  isExpiryNotifyDailyUntilPaid,
+} from './automation-days.js';
 import { formatMembershipExpiryReminderMessage } from './membership-expiry-message.js';
 import { parseMembershipExpiryChannels } from './membership-expiry-channels.js';
+import {
+  expiryDedupeKey,
+  expiryDedupeKeyVariants,
+  membershipIdFromExpiryDedupe,
+} from './membership-expiry-dedupe.js';
 
 export type MembershipExpiryCandidate = {
   membershipId: string;
@@ -66,22 +75,58 @@ export class AutomationService {
     if (!tenant) throw new NotFoundException('Gym not found');
 
     const today = utcMidnight(new Date());
-    const targetDates = uniqueDays.map((offset) => {
-      const ends = new Date(today);
-      ends.setUTCDate(ends.getUTCDate() + offset);
-      return { offset, ends };
-    });
+    const dailyUntilPaid = isExpiryNotifyDailyUntilPaid(
+      this.config.get<string>('ATHRA_EXPIRY_NOTIFY_DAILY') ||
+        this.config.get<string>('FITCORE_EXPIRY_NOTIFY_DAILY'),
+    );
+    const leadDays = expiryNotifyLeadDays(uniqueDays);
+    const horizon = new Date(today);
+    horizon.setUTCDate(horizon.getUTCDate() + leadDays);
 
-    const expiring = await this.prisma.memberMembership.findMany({
-      where: {
-        gymId: tenant.id,
-        status: { in: ['active', 'trial'] },
-        OR: targetDates.map(({ ends }) => ({ endsAt: ends })),
-      },
-      include: { member: true, plan: true },
-    });
+    const expiring = dailyUntilPaid
+      ? await this.prisma.memberMembership.findMany({
+          where: {
+            gymId: tenant.id,
+            status: { in: ['active', 'trial'] },
+            endsAt: { lte: horizon },
+          },
+          include: { member: true, plan: true },
+        })
+      : await this.prisma.memberMembership.findMany({
+          where: {
+            gymId: tenant.id,
+            status: { in: ['active', 'trial'] },
+            OR: uniqueDays.map((offset) => {
+              const ends = new Date(today);
+              ends.setUTCDate(ends.getUTCDate() + offset);
+              return { endsAt: ends };
+            }),
+          },
+          include: { member: true, plan: true },
+        });
 
-    const dedupeKeys = expiring.map((row) => expiryDedupeKey(row.id, row.endsAt));
+    const memberIds = [...new Set(expiring.map((row) => row.memberUserId))];
+    const pendingPayments =
+      memberIds.length && dailyUntilPaid
+        ? await this.prisma.gymPayment.findMany({
+            where: {
+              gymId: tenant.id,
+              memberUserId: { in: memberIds },
+              status: 'pending',
+              membershipPlanId: { not: null },
+            },
+            select: { memberUserId: true },
+          })
+        : [];
+    const pendingMemberIds = new Set(pendingPayments.map((p) => p.memberUserId));
+
+    const dedupeKeys = [
+      ...new Set(
+        expiring.flatMap((row) =>
+          expiryDedupeKeyVariants(row.id, row.endsAt, today),
+        ),
+      ),
+    ];
     const sent = dedupeKeys.length
       ? await this.prisma.gymNotification.findMany({
           where: { dedupeKey: { in: dedupeKeys } },
@@ -91,15 +136,23 @@ export class AutomationService {
     const sentKeys = new Set(sent.map((row) => row.dedupeKey));
 
     const candidates: MembershipExpiryCandidate[] = [];
+    const notifyDaySet = new Set(uniqueDays);
     for (const row of expiring) {
       const endsOn = row.endsAt.toISOString().slice(0, 10);
       const daysUntil = Math.round(
         (row.endsAt.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
       );
-      const dedupeKey = expiryDedupeKey(row.id, row.endsAt);
-      if (sentKeys.has(dedupeKey)) continue;
+      if (!dailyUntilPaid && !notifyDaySet.has(daysUntil)) continue;
+      if (dailyUntilPaid && daysUntil > leadDays) continue;
+
+      const dedupeKey = expiryDedupeKey(row.id, row.endsAt, today);
+      const alreadySent = expiryDedupeKeyVariants(row.id, row.endsAt, today).some(
+        (key) => sentKeys.has(key),
+      );
+      if (alreadySent) continue;
 
       const phone = row.member.phone?.trim() || null;
+      const paymentPendingApproval = pendingMemberIds.has(row.memberUserId);
       candidates.push({
         membershipId: row.id,
         memberUserId: row.memberUserId,
@@ -115,6 +168,7 @@ export class AutomationService {
           planName: row.plan.name,
           endsOn,
           daysUntil,
+          paymentPendingApproval,
         }),
         dedupeKey,
       });
@@ -213,13 +267,25 @@ export class AutomationService {
       select: { dedupeKey: true },
     });
     const alreadyRecorded = new Set(existingRows.map((row) => row.dedupeKey));
-    const byDedupe = new Map(
-      memberships.map((row) => [expiryDedupeKey(row.id, row.endsAt), row]),
-    );
+    const byMembershipId = new Map(memberships.map((row) => [row.id, row]));
+    const memberIds = [...new Set(memberships.map((row) => row.memberUserId))];
+    const pendingPayments = memberIds.length
+      ? await this.prisma.gymPayment.findMany({
+          where: {
+            gymId: tenant.id,
+            memberUserId: { in: memberIds },
+            status: 'pending',
+            membershipPlanId: { not: null },
+          },
+          select: { memberUserId: true },
+        })
+      : [];
+    const pendingMemberIds = new Set(pendingPayments.map((p) => p.memberUserId));
 
     const data = keys
       .map((key) => {
-        const membership = byDedupe.get(key);
+        const membershipId = membershipIdFromExpiryDedupe(key);
+        const membership = membershipId ? byMembershipId.get(membershipId) : undefined;
         if (!membership) return null;
         const endsOn = membership.endsAt.toISOString().slice(0, 10);
         const daysUntil = Math.round(
@@ -231,6 +297,7 @@ export class AutomationService {
           planName: membership.plan.name,
           endsOn,
           daysUntil,
+          paymentPendingApproval: pendingMemberIds.has(membership.memberUserId),
         });
         return {
           gymId: tenant.id,
@@ -267,13 +334,4 @@ function utcMidnight(date: Date) {
   const d = new Date(date);
   d.setUTCHours(0, 0, 0, 0);
   return d;
-}
-
-function expiryDedupeKey(membershipId: string, endsAt: Date) {
-  return `membership-expiry-wa:${membershipId}:${endsAt.toISOString().slice(0, 10)}`;
-}
-
-function membershipIdFromExpiryDedupe(key: string): string | null {
-  const match = /^membership-expiry-wa:([^:]+):/.exec(key);
-  return match?.[1] ?? null;
 }

@@ -27,6 +27,7 @@ import type { UpdatePaymentCollectionDto } from './dto/update-payment-collection
 import { paymentCollectionFromTenant } from './payment-collection.util.js';
 import { AutomationService } from '../automation/automation.service.js';
 import { resolveMembershipExpiryRunParams } from '../automation/automation-run-params.js';
+import { expiryDedupeKey } from '../automation/membership-expiry-dedupe.js';
 import {
   formatSupplementBillMessage,
   sendSupplementBillPhoneStub,
@@ -336,7 +337,7 @@ export class GymOpsService {
         userId: membership.memberUserId,
         title: 'Membership renewal reminder',
         body: `${membership.plan.name} expires on ${membership.endsAt.toISOString().slice(0, 10)}. Contact your gym to renew.`,
-        dedupeKey: `membership-expiry:${membership.id}:${membership.endsAt.toISOString().slice(0, 10)}`,
+        dedupeKey: expiryDedupeKey(membership.id, membership.endsAt, today),
       })),
       skipDuplicates: true,
     });

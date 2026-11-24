@@ -85,7 +85,7 @@ describe('Membership lifecycle tenant safety', () => {
     expect(prisma.gymNotification.createMany).toHaveBeenCalledWith({
       data: [expect.objectContaining({
         userId: 'member-a',
-        dedupeKey: 'membership-expiry:membership-a:2026-11-25',
+        dedupeKey: 'membership-expiry-wa:membership-a:2026-11-25:2026-11-19',
       })],
       skipDuplicates: true,
     });

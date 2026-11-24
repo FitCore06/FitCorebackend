@@ -12,11 +12,11 @@ function addMembershipDays(start: Date, durationDays: number) {
   return end;
 }
 
-/** Extra days after the current membership end date (stack / top-up). */
+/** Stack after inclusive `endDate`: same day count as a new plan from the next calendar day. */
 function extendFromEndDate(endDate: Date, durationDays: number) {
-  const next = new Date(endDate);
-  next.setUTCDate(next.getUTCDate() + durationDays);
-  return next;
+  const extensionStart = new Date(endDate);
+  extensionStart.setUTCDate(extensionStart.getUTCDate() + 1);
+  return addMembershipDays(extensionStart, durationDays);
 }
 
 function isStillActive(endsAt: Date, now = new Date()) {

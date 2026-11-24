@@ -4,22 +4,37 @@ export function formatMembershipExpiryReminderMessage(input: {
   planName: string;
   endsOn: string;
   daysUntil: number;
+  paymentPendingApproval?: boolean;
 }): string {
   const dayLabel =
-    input.daysUntil === 0
-      ? 'aaj'
-      : input.daysUntil === 1
-        ? 'kal'
-        : `${input.daysUntil} din mein`;
-  return [
+    input.daysUntil < 0
+      ? 'expire ho chuka hai'
+      : input.daysUntil === 0
+        ? 'aaj'
+        : input.daysUntil === 1
+          ? 'kal'
+          : `${input.daysUntil} din mein`;
+  const lines = [
     `Namaste ${input.memberName}! 👋`,
     '',
-    `Aapka *${input.planName}* membership *${input.gymName}* par *${endsOnLabel(input.endsOn)}* (${dayLabel}) khatam ho raha hai.`,
+    input.daysUntil < 0
+      ? `Aapka *${input.planName}* membership *${input.gymName}* par *${endsOnLabel(input.endsOn)}* ko khatam ho chuka hai. Renew karke access banaye rakhein.`
+      : `Aapka *${input.planName}* membership *${input.gymName}* par *${endsOnLabel(input.endsOn)}* (${dayLabel}) khatam ho raha hai.`,
     '',
-    'Renew karne ke liye front desk par aayein ya is message par reply karein.',
-    '',
-    'See you at the gym! 💪',
-  ].join('\n');
+  ];
+  if (input.paymentPendingApproval) {
+    lines.push(
+      'Aapka renewal payment gym approval ka wait kar raha hai. Owner jaldi *Mark paid* karega.',
+      '',
+    );
+  } else {
+    lines.push(
+      'Renew karne ke liye Billing / front desk par payment karein. Owner approve karte hi plan active ho jayega.',
+      '',
+    );
+  }
+  lines.push('See you at the gym! 💪');
+  return lines.join('\n');
 }
 
 function endsOnLabel(isoDate: string): string {

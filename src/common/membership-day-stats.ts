@@ -9,10 +9,8 @@ export function membershipDayStats(startsAt: Date, endsAt: Date) {
   const end = utcDay(endsAt);
   const today = utcDay(new Date());
   const msDay = 86_400_000;
-  const totalDays = Math.max(
-    1,
-    Math.round((end.getTime() - start.getTime()) / msDay) + 1,
-  );
+  const daySpan = Math.floor((end.getTime() - start.getTime()) / msDay);
+  const totalDays = Math.max(1, daySpan + 1);
   const remainingDays = Math.max(
     0,
     Math.round((end.getTime() - today.getTime()) / msDay),

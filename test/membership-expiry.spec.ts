@@ -3,7 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AutomationSecretGuard } from '../src/automation/automation-secret.guard.js';
 import { AutomationService } from '../src/automation/automation.service.js';
+import { expiryDedupeKey } from '../src/automation/membership-expiry-dedupe.js';
 import type { PrismaService } from '../src/prisma/prisma.service.js';
+
+const NOTIFY_ON = new Date('2026-11-21T00:00:00.000Z');
+const ENDS_AT = new Date('2026-11-28T00:00:00.000Z');
 
 const candidateBase = {
   membershipId: 'mem-1',
@@ -12,10 +16,10 @@ const candidateBase = {
   memberEmail: 'member@gym.test',
   phone: '8603968266',
   planName: 'QA Plan',
-  endsOn: '2026-11-28',
+  endsOn: ENDS_AT.toISOString().slice(0, 10),
   daysUntil: 7,
   message: 'Namaste',
-  dedupeKey: 'membership-expiry-wa:mem-1:2026-11-28',
+  dedupeKey: expiryDedupeKey('mem-1', ENDS_AT, NOTIFY_ON),
 };
 
 function makeService() {
@@ -34,7 +38,55 @@ function makeService() {
 
 describe('AutomationService.runMembershipExpiryReminders', () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it('builds dedupe keys from fixed UTC midnight today', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOTIFY_ON);
+
+    const prisma = {
+      tenant: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'gym-1',
+          name: 'Demo Fitness Club',
+          slug: 'demo-gym',
+        }),
+      },
+      memberMembership: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'mem-1',
+            memberUserId: 'user-1',
+            endsAt: ENDS_AT,
+            member: {
+              name: 'Demo Member',
+              email: 'member@gym.test',
+              phone: '8603968266',
+            },
+            plan: { name: 'QA Plan' },
+          },
+        ]),
+      },
+      gymNotification: { findMany: vi.fn().mockResolvedValue([]) },
+      gymPayment: { findMany: vi.fn().mockResolvedValue([]) },
+    } as unknown as PrismaService;
+    const config = {
+      get: vi.fn((key: string) => {
+        if (key === 'FITCORE_MEMBERSHIP_EXPIRY_CHANNELS') return undefined;
+        return undefined;
+      }),
+    } as unknown as ConfigService;
+    const expoPush = { sendToUser: vi.fn() };
+    const service = new AutomationService(prisma, config, expoPush as never);
+
+    const list = await service.listMembershipExpiryCandidates('demo-gym', [7]);
+
+    expect(list.candidates).toHaveLength(1);
+    expect(list.candidates[0]?.dedupeKey).toBe(
+      expiryDedupeKey('mem-1', ENDS_AT, NOTIFY_ON),
+    );
   });
 
   it('delivers in_app by default', async () => {
