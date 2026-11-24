@@ -37,4 +37,9 @@ export class MemberPaymentRequestDto {
   @IsOptional()
   @IsString()
   idempotencyKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  membershipPlanId?: string;
 }

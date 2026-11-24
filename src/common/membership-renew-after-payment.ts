@@ -12,6 +12,19 @@ function addMembershipDays(start: Date, durationDays: number) {
   return end;
 }
 
+/** Extra days after the current membership end date (stack / top-up). */
+function extendFromEndDate(endDate: Date, durationDays: number) {
+  const next = new Date(endDate);
+  next.setUTCDate(next.getUTCDate() + durationDays);
+  return next;
+}
+
+function isStillActive(endsAt: Date, now = new Date()) {
+  const today = utcMidnight(now);
+  const endDay = utcMidnight(endsAt);
+  return endDay >= today;
+}
+
 /** Renews current structured membership when payment title looks like membership. */
 export async function renewMembershipAfterPayment(
   prisma: PrismaClient,
@@ -80,4 +93,85 @@ export async function renewMembershipAfterPayment(
   });
 
   return { renewed: true, membershipId: membership.id };
+}
+
+/** Assign or switch membership to the plan chosen on the payment request. */
+export async function applyMembershipFromPayment(
+  prisma: PrismaClient,
+  gymId: string,
+  memberUserId: string,
+  planId: string,
+): Promise<{
+  applied: boolean;
+  membershipId?: string;
+  planName?: string;
+  durationDays?: number;
+  endsOn?: string;
+  stacked?: boolean;
+  reason?: string;
+}> {
+  const plan = await prisma.gymMembershipPlan.findFirst({
+    where: { id: planId, gymId },
+  });
+  if (!plan) return { applied: false, reason: 'plan_not_found' };
+  if (!plan.durationDays) return { applied: false, reason: 'plan_missing_duration' };
+
+  const current = await prisma.memberMembership.findFirst({
+    where: {
+      gymId,
+      memberUserId,
+      status: { in: ['active', 'trial', 'frozen'] },
+    },
+    orderBy: { endsAt: 'desc' },
+  });
+
+  const stacked = Boolean(current && isStillActive(current.endsAt));
+  const startsAt = stacked && current ? current.startsAt : utcMidnight();
+  const endsAt =
+    stacked && current
+      ? extendFromEndDate(current.endsAt, plan.durationDays)
+      : addMembershipDays(startsAt, plan.durationDays);
+
+  const membership = await prisma.$transaction(async (tx) => {
+    await tx.memberMembership.updateMany({
+      where: {
+        gymId,
+        memberUserId,
+        status: { in: ['active', 'trial', 'frozen'] },
+      },
+      data: { status: stacked ? 'renewed' : 'replaced' },
+    });
+    const created = await tx.memberMembership.create({
+      data: {
+        gymId,
+        memberUserId,
+        planId: plan.id,
+        status: 'active',
+        startsAt,
+        endsAt,
+        renewedFromId: current?.id ?? null,
+      },
+    });
+    const planLabel = stacked
+      ? `${plan.name} (+${plan.durationDays}d)`
+      : plan.name;
+    await tx.memberTrainerAssignment.updateMany({
+      where: { gymId, memberUserId },
+      data: {
+        membershipStatus: 'active',
+        planLabel,
+        membershipNote: endsAt.toISOString().slice(0, 10),
+      },
+    });
+    return created;
+  });
+
+  return {
+    applied: true,
+    membershipId: membership.id,
+    planName: plan.name,
+    durationDays: plan.durationDays,
+    endsOn: endsAt.toISOString().slice(0, 10),
+    stacked,
+  };
 }

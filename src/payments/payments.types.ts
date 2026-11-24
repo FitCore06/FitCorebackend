@@ -11,6 +11,9 @@ export type PaymentDto = {
   status: PaymentStatus;
   at: string;
   hasProof: boolean;
+  membershipPlanId?: string | null;
+  membershipPlanName?: string | null;
+  membershipDurationDays?: number | null;
 };
 
 export type MemberReceiptDto = {

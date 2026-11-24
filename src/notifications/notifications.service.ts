@@ -20,6 +20,8 @@ export class NotificationsService {
       body: r.body,
       read: r.read,
       at: formatAt(r.createdAt),
+      actionType: r.actionType ?? null,
+      resourceId: r.resourceId ?? null,
     }));
   }
 

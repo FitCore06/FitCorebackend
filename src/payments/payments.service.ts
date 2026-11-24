@@ -9,7 +9,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Role, type AuthUserPayload } from '../auth/auth.types.js';
 import { gymRole } from '../auth/guards/roles.guard.js';
-import { renewMembershipAfterPayment } from '../common/membership-renew-after-payment.js';
+import {
+  applyMembershipFromPayment,
+  renewMembershipAfterPayment,
+} from '../common/membership-renew-after-payment.js';
+import { ExpoPushService } from '../notifications/expo-push.service.js';
 import { validateBase64Image } from '../common/image-upload.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { MemberPaymentRequestDto } from './dto/member-payment-request.dto.js';
@@ -46,6 +50,7 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly expoPush: ExpoPushService,
   ) {}
 
   private toDto(row: {
@@ -57,6 +62,11 @@ export class PaymentsService {
     status: string;
     createdAt: Date;
     proofData?: string | null;
+    membershipPlanId?: string | null;
+    membershipPlan?: {
+      name: string;
+      durationDays: number | null;
+    } | null;
     member: { name: string; email: string };
   }): PaymentDto {
     return {
@@ -70,6 +80,9 @@ export class PaymentsService {
       status: row.status as PaymentStatus,
       at: formatWhen(row.createdAt),
       hasProof: Boolean(row.proofData?.trim()),
+      membershipPlanId: row.membershipPlanId ?? null,
+      membershipPlanName: row.membershipPlan?.name ?? null,
+      membershipDurationDays: row.membershipPlan?.durationDays ?? null,
     };
   }
 
@@ -84,7 +97,10 @@ export class PaymentsService {
 
     const rows = await this.prisma.gymPayment.findMany({
       where: { gymId: tenant.id },
-      include: { member: true },
+      include: {
+        member: true,
+        membershipPlan: { select: { name: true, durationDays: true } },
+      },
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
@@ -158,13 +174,26 @@ export class PaymentsService {
       proof = { proofMimeType: validated.mimeType, proofData: validated.base64 };
     }
 
-    const title = dto.title?.trim() || 'Membership renewal (UPI)';
+    const planId = dto.membershipPlanId?.trim();
+    if (!planId) {
+      throw new BadRequestException('membershipPlanId required — pick a gym plan');
+    }
+    const plan = await this.prisma.gymMembershipPlan.findFirst({
+      where: { id: planId, gymId: memberRole.gymId },
+    });
+    if (!plan) throw new BadRequestException('Invalid membership plan for this gym');
+
+    const title =
+      `Membership: ${plan.name}`;
     const method = (dto.method?.trim() || 'UPI').slice(0, 40);
 
     if (dto.idempotencyKey) {
       const existing = await this.prisma.gymPayment.findFirst({
         where: { gymId: memberRole.gymId, idempotencyKey: dto.idempotencyKey.trim() },
-        include: { member: true },
+        include: {
+          member: true,
+          membershipPlan: { select: { name: true, durationDays: true } },
+        },
       });
       if (existing) return this.toDto(existing);
     }
@@ -180,8 +209,12 @@ export class PaymentsService {
         idempotencyKey: dto.idempotencyKey?.trim() || null,
         proofMimeType: proof.proofMimeType,
         proofData: proof.proofData,
+        membershipPlanId: plan.id,
       },
-      include: { member: true },
+      include: {
+        member: true,
+        membershipPlan: { select: { name: true, durationDays: true } },
+      },
     });
 
     await this.prisma.auditLog.create({
@@ -190,11 +223,168 @@ export class PaymentsService {
         userId: user.id,
         action: 'payment.member_submitted',
         resource: row.id,
-        meta: { amountInr: row.amountInr, hasProof: Boolean(proof.proofData) },
+        meta: {
+          amountInr: row.amountInr,
+          hasProof: Boolean(proof.proofData),
+          membershipPlanId: plan.id,
+        },
       },
     });
 
+    await this.notifyAdminsMembershipPaymentPending(
+      memberRole.gymId,
+      row,
+      plan,
+      user.name,
+    );
+
     return this.toDto(row);
+  }
+
+  private async notifyAdminsMembershipPaymentPending(
+    gymId: string,
+    payment: { id: string; amountInr: number },
+    plan: {
+      name: string;
+      durationDays: number | null;
+      durationLabel: string;
+    },
+    memberName: string,
+  ) {
+    const admins = await this.prisma.userTenantRole.findMany({
+      where: { gymId, role: Role.GYM_ADMIN },
+      select: { userId: true },
+    });
+    if (!admins.length) return;
+
+    const days = plan.durationDays ?? null;
+    const validity =
+      days != null
+        ? `${days} day${days === 1 ? '' : 's'} (${plan.durationLabel})`
+        : plan.durationLabel;
+    const body = `${memberName} paid ₹${payment.amountInr.toLocaleString('en-IN')} for “${plan.name}” — ${validity}. Open Payments to mark paid and activate membership.`;
+
+    await this.prisma.gymNotification.createMany({
+      data: admins.map((a) => ({
+        gymId,
+        userId: a.userId,
+        title: 'Membership payment — approve',
+        body,
+        dedupeKey: `payment_pending:${payment.id}:${a.userId}`,
+        actionType: 'payment_approve',
+        resourceId: payment.id,
+      })),
+      skipDuplicates: true,
+    });
+
+    for (const admin of admins) {
+      void this.expoPush
+        .sendToUser(admin.userId, {
+          title: 'Membership payment pending',
+          body: `${memberName} · ${plan.name} · ₹${payment.amountInr}`,
+          data: {
+            kind: 'payment_approve',
+            paymentId: payment.id,
+          },
+        })
+        .catch(() => undefined);
+    }
+  }
+
+  async approveMembershipPayment(user: AuthUserPayload, paymentId: string) {
+    const row = await this.prisma.gymPayment.findUnique({
+      where: { id: paymentId },
+      include: {
+        member: true,
+        tenant: true,
+        membershipPlan: true,
+      },
+    });
+    if (!row) throw new NotFoundException('Payment not found');
+
+    const admin = gymRole(user, Role.GYM_ADMIN, row.tenant.slug);
+    if (!admin) throw new ForbiddenException('Gym admin only');
+    if (row.status !== 'pending') {
+      throw new ConflictException('Payment is not pending');
+    }
+  if (!row.membershipPlanId || !row.membershipPlan) {
+      throw new BadRequestException('Payment has no membership plan — use Mark paid only');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const payment = await tx.gymPayment.update({
+        where: { id: paymentId },
+        data: { status: 'paid' },
+        include: {
+          member: true,
+          membershipPlan: { select: { name: true, durationDays: true } },
+        },
+      });
+      await tx.paymentLedgerEntry.create({
+        data: {
+          gymId: row.gymId,
+          paymentId,
+          kind: 'payment',
+          amountInr: payment.amountInr,
+          eventKey: `payment:${paymentId}`,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          gymId: row.gymId,
+          userId: user.id,
+          action: 'payment.approved_membership',
+          resource: paymentId,
+          meta: { membershipPlanId: row.membershipPlanId },
+        },
+      });
+      return payment;
+    });
+
+    const applied = await applyMembershipFromPayment(
+      this.prisma,
+      row.gymId,
+      row.memberUserId,
+      row.membershipPlanId,
+    );
+
+    const validity =
+      applied.durationDays != null
+        ? `${applied.durationDays} days`
+        : row.membershipPlan.durationLabel;
+    const stackNote = applied.stacked ? ' Extra days added after your previous end date.' : '';
+    await this.prisma.gymNotification.create({
+      data: {
+        gymId: row.gymId,
+        userId: row.memberUserId,
+        title: applied.stacked ? 'Membership extended' : 'Membership active',
+        body: `Your ${applied.planName ?? row.membershipPlan.name} is active — ${validity} (until ${applied.endsOn ?? '—'}).${stackNote}`,
+        dedupeKey: `membership_active:${paymentId}`,
+      },
+    });
+    void this.expoPush
+      .sendToUser(row.memberUserId, {
+        title: 'Membership activated',
+        body: `${applied.planName ?? row.membershipPlan.name} · ${validity}`,
+        data: { kind: 'membership_active', paymentId },
+      })
+      .catch(() => undefined);
+
+    await this.prisma.gymNotification.updateMany({
+      where: {
+        gymId: row.gymId,
+        resourceId: paymentId,
+        actionType: 'payment_approve',
+      },
+      data: { read: true },
+    });
+
+    return {
+      payment: this.toDto(updated),
+      membershipApplied: applied.applied,
+      planName: applied.planName,
+      endsOn: applied.endsOn,
+    };
   }
 
   async paymentProofDataUrl(user: AuthUserPayload, paymentId: string) {
@@ -298,7 +488,11 @@ export class PaymentsService {
   ): Promise<PaymentDto> {
     const row = await this.prisma.gymPayment.findUnique({
       where: { id },
-      include: { member: true, tenant: true },
+      include: {
+        member: true,
+        tenant: true,
+        membershipPlan: { select: { name: true, durationDays: true } },
+      },
     });
     if (!row) throw new NotFoundException('Payment not found');
 
@@ -311,6 +505,11 @@ export class PaymentsService {
     if (row.status === status) return this.toDto(row);
     if (row.status !== 'pending' || status !== 'paid') {
       throw new ConflictException('Invalid payment status transition');
+    }
+
+    if (row.membershipPlanId) {
+      const { payment } = await this.approveMembershipPayment(user, id);
+      return payment;
     }
     const updated = await this.prisma.$transaction(async (tx) => {
       const payment = await tx.gymPayment.update({

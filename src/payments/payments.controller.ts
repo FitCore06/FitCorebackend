@@ -111,4 +111,16 @@ export class PaymentsController {
   ) {
     return this.payments.updateStatus(req.user, id, dto.status);
   }
+
+  @Post(':id/approve-membership')
+  @Roles(Role.GYM_ADMIN)
+  @ApiOperation({
+    summary: 'Mark paid and assign or renew the membership plan on this payment',
+  })
+  approveMembership(
+    @Req() req: AuthedRequest,
+    @Param('id') id: string,
+  ) {
+    return this.payments.approveMembershipPayment(req.user, id);
+  }
 }

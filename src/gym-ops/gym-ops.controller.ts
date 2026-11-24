@@ -10,7 +10,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import type { AuthUserPayload } from '../auth/auth.types.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
@@ -39,9 +39,25 @@ export class GymOpsController {
   constructor(private readonly ops: GymOpsService) {}
 
   @Get('memberships/plans')
-  @Roles(Role.GYM_ADMIN)
+  @Roles(Role.GYM_ADMIN, Role.MEMBER)
+  @ApiOperation({
+    summary:
+      'Gym membership plans (owner sees active counts; members see catalog to purchase)',
+  })
   plans(@Req() req: AuthedRequest, @Query('gymSlug') gymSlug: string) {
     return this.ops.membershipPlans(req.user, gymSlug);
+  }
+
+  @Get('memberships/plans/member')
+  @Roles(Role.MEMBER)
+  @ApiOperation({
+    summary: 'Alias: all gym membership plans for members',
+  })
+  memberPlanCatalog(
+    @Req() req: AuthedRequest,
+    @Query('gymSlug') gymSlug: string,
+  ) {
+    return this.ops.membershipPlanCatalogForMember(req.user, gymSlug.trim());
   }
 
   @Post('memberships/plans')

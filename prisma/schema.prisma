@@ -328,6 +328,7 @@ model GymMembershipPlan {
 
   tenant      Tenant             @relation(fields: [gymId], references: [id], onDelete: Cascade)
   memberships MemberMembership[]
+  payments    GymPayment[]
 
   @@index([gymId])
   @@map("gym_membership_plans")
@@ -429,9 +430,11 @@ model GymNotification {
   userId    String   @map("user_id")
   title     String
   body      String
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now()) @map("created_at")
-  dedupeKey String?  @unique @map("dedupe_key")
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+  dedupeKey  String?  @unique @map("dedupe_key")
+  actionType String?  @map("action_type")
+  resourceId String?  @map("resource_id")
 
   tenant Tenant @relation(fields: [gymId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -526,11 +529,13 @@ model GymPayment {
   providerOrderId   String?  @unique @map("provider_order_id")
   proofMimeType     String?  @map("proof_mime_type")
   proofData         String?  @map("proof_data") @db.Text
+  membershipPlanId  String?  @map("membership_plan_id")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  tenant        Tenant               @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  member        User                 @relation(fields: [memberUserId], references: [id], onDelete: Cascade)
+  tenant           Tenant              @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  member           User                @relation(fields: [memberUserId], references: [id], onDelete: Cascade)
+  membershipPlan   GymMembershipPlan?  @relation(fields: [membershipPlanId], references: [id], onDelete: SetNull)
   refunds       PaymentRefund[]
   ledgerEntries PaymentLedgerEntry[]
 

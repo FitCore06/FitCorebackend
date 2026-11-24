@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { Role, type AuthUserPayload } from '../auth/auth.types.js';
 import { gymRole } from '../auth/guards/roles.guard.js';
 import { validateBase64Image } from '../common/image-upload.js';
+import { membershipDayStats } from '../common/membership-day-stats.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { textReportToPdf } from './report-pdf.js';
 import {
@@ -50,12 +51,67 @@ export class GymOpsService {
     return tenant;
   }
 
+  /** Every plan the owner created under Memberships → Gym access (member does not need an assignment). */
+  async membershipPlanCatalogForMember(user: AuthUserPayload, gymSlug: string) {
+    const slug = gymSlug?.trim().toLowerCase();
+    if (!slug) throw new BadRequestException('gymSlug is required');
+    const member = gymRole(user, Role.MEMBER, slug);
+    if (!member) throw new ForbiddenException('Members only');
+    const tenant = await this.prisma.tenant.findUnique({ where: { slug } });
+    if (!tenant) throw new NotFoundException('Gym not found');
+    const role = await this.prisma.userTenantRole.findFirst({
+      where: {
+        gymId: tenant.id,
+        userId: user.id,
+        role: Role.MEMBER,
+      },
+    });
+    if (!role) throw new ForbiddenException('Not a member of this gym');
+
+    const plans = await this.prisma.gymMembershipPlan.findMany({
+      where: { gymId: tenant.id },
+      orderBy: [{ priceInr: 'asc' }, { name: 'asc' }],
+    });
+
+    return plans.map((p) => ({
+      id: p.id,
+      name: p.name,
+      durationLabel: p.durationLabel,
+      durationDays: p.durationDays,
+      priceInr: p.priceInr,
+    }));
+  }
+
   async membershipPlans(user: AuthUserPayload, gymSlug: string) {
-    const tenant = await this.tenantForAdmin(user, gymSlug);
+    const slug = gymSlug?.trim().toLowerCase();
+    if (!slug) throw new BadRequestException('gymSlug is required');
+    const admin = gymRole(user, Role.GYM_ADMIN, slug);
+    const member = gymRole(user, Role.MEMBER, slug);
+    if (!admin && !member) throw new ForbiddenException('Not allowed for this gym');
+    const tenant = await this.prisma.tenant.findUnique({ where: { slug } });
+    if (!tenant) throw new NotFoundException('Gym not found');
+    if (member && !admin) {
+      const role = await this.prisma.userTenantRole.findFirst({
+        where: { gymId: tenant.id, userId: user.id, role: Role.MEMBER },
+      });
+      if (!role) throw new ForbiddenException('Not a member of this gym');
+    }
+
     const plans = await this.prisma.gymMembershipPlan.findMany({
       where: { gymId: tenant.id },
       orderBy: { priceInr: 'asc' },
     });
+
+    if (member && !admin) {
+      return plans.map((p) => ({
+        id: p.id,
+        name: p.name,
+        durationLabel: p.durationLabel,
+        durationDays: p.durationDays,
+        priceInr: p.priceInr,
+      }));
+    }
+
     const counts = await this.prisma.memberMembership.groupBy({
       by: ['planId'],
       where: {
@@ -134,16 +190,23 @@ export class GymOpsService {
       orderBy: { assignedAt: 'desc' },
     });
     const now = new Date();
-    const normalized = structured.map((row) => ({
-      id: row.id,
-      memberUserId: row.memberUserId,
-      memberName: row.member.name,
-      plan: row.plan.name,
-      planId: row.planId,
-      status: row.endsAt < now && row.status !== 'frozen' ? 'expired' : row.status,
-      endsOn: row.endsAt.toISOString().slice(0, 10),
-      structured: true,
-    }));
+    const normalized = structured.map((row) => {
+      const endsOn = row.endsAt.toISOString().slice(0, 10);
+      const startsOn = row.startsAt.toISOString().slice(0, 10);
+      return {
+        id: row.id,
+        memberUserId: row.memberUserId,
+        memberName: row.member.name,
+        plan: row.plan.name,
+        planId: row.planId,
+        status: row.endsAt < now && row.status !== 'frozen' ? 'expired' : row.status,
+        endsOn,
+        startsOn,
+        planPriceInr: row.plan.priceInr,
+        ...membershipDayStats(row.startsAt, row.endsAt),
+        structured: true,
+      };
+    });
     const legacy = legacyRows.filter((row) => !structuredMemberIds.includes(row.memberUserId)).map((r) => ({
       id: r.id,
       memberUserId: r.memberUserId,

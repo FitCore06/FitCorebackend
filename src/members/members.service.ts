@@ -9,6 +9,7 @@ import * as bcrypt from 'bcryptjs';
 import { Role, type AuthUserPayload } from '../auth/auth.types.js';
 import { gymRole } from '../auth/guards/roles.guard.js';
 import { validateBase64Image } from '../common/image-upload.js';
+import { membershipDayStats } from '../common/membership-day-stats.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   REGISTRATION_INVITE_KIND,
@@ -29,6 +30,7 @@ function normalizeStatus(
   }
   return 'unassigned';
 }
+
 
 @Injectable()
 export class MembersService {
@@ -160,6 +162,83 @@ export class MembersService {
     return this.buildMemberProfile(tenant.id, user.id);
   }
 
+  async getMyMembershipRenewal(user: AuthUserPayload, gymSlug: string) {
+    const member = gymRole(user, Role.MEMBER, gymSlug);
+    if (!member) throw new ForbiddenException('Members only');
+    const tenant = await this.tenantForSlug(gymSlug);
+    await this.assertMemberInGym(tenant.id, user.id);
+
+    const [membership, planRows] = await Promise.all([
+      this.prisma.memberMembership.findFirst({
+        where: {
+          gymId: tenant.id,
+          memberUserId: user.id,
+          status: { in: ['active', 'trial', 'frozen'] },
+        },
+        include: { plan: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.gymMembershipPlan.findMany({
+        where: { gymId: tenant.id },
+        orderBy: [{ priceInr: 'asc' }, { name: 'asc' }],
+      }),
+    ]);
+
+    const availablePlans = planRows.map((p) => ({
+      id: p.id,
+      name: p.name,
+      durationLabel: p.durationLabel,
+      durationDays: p.durationDays,
+      priceInr: p.priceInr,
+    }));
+
+    if (!membership) {
+      return {
+        planId: null,
+        planName: null,
+        priceInr: null,
+        status: null,
+        endsOn: null,
+        availablePlans,
+      };
+    }
+
+    const now = new Date();
+    const status =
+      membership.endsAt < now && membership.status !== 'frozen'
+        ? 'expired'
+        : membership.status;
+
+    return {
+      planId: membership.planId,
+      planName: membership.plan.name,
+      priceInr: membership.plan.priceInr,
+      status,
+      endsOn: membership.endsAt.toISOString().slice(0, 10),
+      availablePlans,
+    };
+  }
+
+  async listMyMembershipPlans(user: AuthUserPayload, gymSlug: string) {
+    const member = gymRole(user, Role.MEMBER, gymSlug);
+    if (!member) throw new ForbiddenException('Members only');
+    const tenant = await this.tenantForSlug(gymSlug);
+    await this.assertMemberInGym(tenant.id, user.id);
+
+    const plans = await this.prisma.gymMembershipPlan.findMany({
+      where: { gymId: tenant.id },
+      orderBy: [{ priceInr: 'asc' }, { name: 'asc' }],
+    });
+
+    return plans.map((p) => ({
+      id: p.id,
+      name: p.name,
+      durationLabel: p.durationLabel,
+      durationDays: p.durationDays,
+      priceInr: p.priceInr,
+    }));
+  }
+
   async getMemberProfile(
     user: AuthUserPayload,
     gymSlug: string,
@@ -267,7 +346,7 @@ export class MembersService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const [tenant, adminRole, assignment] = await Promise.all([
+    const [tenant, adminRole, assignment, gymMembership] = await Promise.all([
       this.prisma.tenant.findUnique({ where: { id: gymId } }),
       this.prisma.userTenantRole.findFirst({
         where: { gymId, role: Role.GYM_ADMIN },
@@ -277,6 +356,15 @@ export class MembersService {
       this.prisma.memberTrainerAssignment.findFirst({
         where: { gymId, memberUserId, active: true },
         include: { trainer: true },
+      }),
+      this.prisma.memberMembership.findFirst({
+        where: {
+          gymId,
+          memberUserId,
+          status: { in: ['active', 'trial', 'frozen'] },
+        },
+        include: { plan: true },
+        orderBy: { createdAt: 'desc' },
       }),
     ]);
 
@@ -376,10 +464,32 @@ export class MembersService {
       phone: user.phone,
       notes: user.memberNotes,
       hasProfilePhoto: Boolean(user.profilePhotoData),
-      plan: assignment?.planLabel ?? '—',
-      status: assignment
-        ? normalizeStatus(assignment.membershipStatus)
-        : 'unassigned',
+      plan:
+        gymMembership?.plan.name ??
+        assignment?.planLabel ??
+        '—',
+      status: gymMembership
+        ? normalizeStatus(
+            gymMembership.endsAt < new Date() &&
+              gymMembership.status !== 'frozen'
+              ? 'expired'
+              : gymMembership.status,
+          )
+        : assignment
+          ? normalizeStatus(assignment.membershipStatus)
+          : 'unassigned',
+      planPriceInr: gymMembership?.plan.priceInr ?? null,
+      membershipProgress: gymMembership
+        ? {
+            startsOn: gymMembership.startsAt.toISOString().slice(0, 10),
+            endsOn: gymMembership.endsAt.toISOString().slice(0, 10),
+            planName: gymMembership.plan.name,
+            ...membershipDayStats(
+              gymMembership.startsAt,
+              gymMembership.endsAt,
+            ),
+          }
+        : null,
       trainerName: assignment?.trainer.name ?? null,
       branchLabel: lastCheckIn?.branchName ?? 'Main branch',
       totalSpentInr,

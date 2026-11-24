@@ -82,6 +82,30 @@ export class MembersController {
     return this.members.upsertMyBodyWeight(req.user, body);
   }
 
+  @Get('me/membership-renewal')
+  @Roles(Role.MEMBER)
+  @ApiOperation({
+    summary: 'Active gym membership plan and renewal amount for billing',
+  })
+  myMembershipRenewal(
+    @Req() req: AuthedRequest,
+    @Query('gymSlug') gymSlug: string,
+  ) {
+    return this.members.getMyMembershipRenewal(req.user, gymSlug.trim());
+  }
+
+  @Get('me/membership-plans')
+  @Roles(Role.MEMBER)
+  @ApiOperation({
+    summary: 'Gym membership plans available for purchase at this gym',
+  })
+  myMembershipPlans(
+    @Req() req: AuthedRequest,
+    @Query('gymSlug') gymSlug: string,
+  ) {
+    return this.members.listMyMembershipPlans(req.user, gymSlug.trim());
+  }
+
   @Get('me/profile')
   @Roles(Role.MEMBER)
   myProfile(@Req() req: AuthedRequest, @Query('gymSlug') gymSlug: string) {
