@@ -21,7 +21,9 @@ Public key must be on the VM (`~/.ssh/authorized_keys` for `ubuntu`).
 
 Optional: `APP_PUBLIC_URL`, `FITCORE_AUTOMATION_SECRET`, Razorpay keys.
 
-Prisma **migrations run on the Oracle VM** during deploy (not on GitHub Actions — runners often get Neon P1001 on direct hosts).
+Prisma migrations on the VM are **skipped by default** (`ORACLE_SKIP_VM_MIGRATE=1`) once Neon is migrated. Set `ORACLE_SKIP_VM_MIGRATE=0` only when you need `migrate deploy` on deploy.
+
+`MIGRATE_DATABASE_URL` must be Neon **direct** (no `-pooler`) if migrate runs — pooler causes P1002 advisory lock timeouts.
 
 **Neon URL:** Dashboard → **Connect** → **Direct** → copy full string. Host must be real (`ep-soft-cell-…`), not docs placeholder `ep-xxxx`. If password has `@ # %`, use Neon’s copy button or URL-encode it.
 

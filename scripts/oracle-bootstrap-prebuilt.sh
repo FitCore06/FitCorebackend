@@ -49,22 +49,42 @@ tar -xzf "$BUNDLE" -C "$APP_DIR"
 
 if [ -x "$APP_DIR/node_modules/.bin/prisma" ]; then
   ( cd "$APP_DIR" && ./node_modules/.bin/prisma generate )
-  migrate_url="${MIGRATE_DATABASE_URL:-$DATABASE_URL}"
-  if [ -n "$migrate_url" ]; then
-    echo "==> prisma migrate deploy (from VM)"
-    attempt=1
-    while [ "$attempt" -le 6 ]; do
-      if ( cd "$APP_DIR" && DATABASE_URL="$migrate_url" ./node_modules/.bin/prisma migrate deploy ); then
-        break
+  if [ "${ORACLE_SKIP_VM_MIGRATE:-0}" = "1" ] || [ "${ORACLE_SKIP_VM_MIGRATE:-}" = "true" ]; then
+    echo "==> skip prisma migrate (ORACLE_SKIP_VM_MIGRATE)"
+  else
+    migrate_url="${MIGRATE_DATABASE_URL:-$DATABASE_URL}"
+    if [ -n "$migrate_url" ]; then
+      if printf '%s' "$migrate_url" | grep -q '\-pooler'; then
+        echo "WARN: use Neon direct URL in MIGRATE_DATABASE_URL (no -pooler) for migrate deploy" >&2
       fi
-      if [ "$attempt" -eq 6 ]; then
-        echo "ERROR: prisma migrate deploy failed after 6 attempts" >&2
-        exit 1
+      echo "==> prisma migrate (from VM)"
+      lock_timeout="${PRISMA_MIGRATE_ADVISORY_LOCK_TIMEOUT:-120000}"
+      status_out="$(
+        cd "$APP_DIR" && env DATABASE_URL="$migrate_url" ./node_modules/.bin/prisma migrate status 2>&1
+      )" || true
+      if printf '%s' "$status_out" | grep -qi 'Database schema is up to date'; then
+        echo "==> skip migrate deploy (schema already up to date)"
+      else
+        attempt=1
+        max=3
+        while [ "$attempt" -le "$max" ]; do
+          if (
+            cd "$APP_DIR" &&
+            env DATABASE_URL="$migrate_url" PRISMA_MIGRATE_ADVISORY_LOCK_TIMEOUT="$lock_timeout" \
+              ./node_modules/.bin/prisma migrate deploy
+          ); then
+            break
+          fi
+          if [ "$attempt" -eq "$max" ]; then
+            echo "ERROR: prisma migrate deploy failed (${max} attempts). Set ORACLE_SKIP_VM_MIGRATE=1 if DB already migrated." >&2
+            exit 1
+          fi
+          echo "migrate retry ${attempt}/${max} in 45s (advisory lock / Neon)..."
+          sleep 45
+          attempt=$((attempt + 1))
+        done
       fi
-      echo "migrate retry ${attempt}/6 in 15s..."
-      sleep 15
-      attempt=$((attempt + 1))
-    done
+    fi
   fi
 fi
 

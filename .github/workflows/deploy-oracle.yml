@@ -153,6 +153,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MIGRATE_DATABASE_URL: ${{ secrets.MIGRATE_DATABASE_URL }}
+          ORACLE_SKIP_VM_MIGRATE: ${{ secrets.ORACLE_SKIP_VM_MIGRATE }}
           JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET }}
           CORS_ORIGINS: ${{ secrets.CORS_ORIGINS || 'https://athra-fit.vercel.app' }}
           APP_PUBLIC_URL: ${{ secrets.APP_PUBLIC_URL }}
@@ -197,6 +198,7 @@ jobs:
           export RAZORPAY_KEY_ID=$(printf '%q' "$RAZORPAY_KEY_ID")
           export RAZORPAY_KEY_SECRET=$(printf '%q' "$RAZORPAY_KEY_SECRET")
           export RAZORPAY_WEBHOOK_SECRET=$(printf '%q' "$RAZORPAY_WEBHOOK_SECRET")
+          export ORACLE_SKIP_VM_MIGRATE=$(printf '%q' "${ORACLE_SKIP_VM_MIGRATE:-1}")
           export BUNDLE=/tmp/athra-api-linux-amd64.tar.gz
           chmod +x /tmp/scripts/oracle-bootstrap-prebuilt.sh
           bash /tmp/scripts/oracle-bootstrap-prebuilt.sh
