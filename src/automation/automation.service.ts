@@ -103,10 +103,9 @@ export class AutomationService {
         });
 
     const memberIds = [...new Set(expiring.map((row) => row.memberUserId))];
-    const pendingMemberIds = await this.pendingMembershipPaymentMemberIds(
-      tenant.id,
-      memberIds,
-    );
+    const pendingMemberIds = dailyUntilPaid
+      ? await this.pendingMembershipPaymentMemberIds(tenant.id, memberIds)
+      : new Set<string>();
 
     const dedupeKeys = [
       ...new Set(
@@ -320,7 +319,7 @@ export class AutomationService {
     gymId: string,
     memberUserIds: string[],
   ): Promise<Set<string>> {
-    if (!memberUserIds.length || !this.isExpiryDailyUntilPaid()) {
+    if (!memberUserIds.length) {
       return new Set();
     }
     const pendingPayments = await this.prisma.gymPayment.findMany({
