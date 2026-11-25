@@ -35,7 +35,8 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:qa": "tsx prisma/qa-populate.ts",
-    "security:audit": "tsx scripts/security-audit.ts"
+    "security:audit": "tsx scripts/security-audit.ts",
+    "audit:deps": "npm audit --audit-level=high"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

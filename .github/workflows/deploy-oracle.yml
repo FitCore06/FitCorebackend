@@ -22,6 +22,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Dependency audit (high+)
+        run: npm ci && npm run audit:deps
+
       # GitHub-hosted runners often hit Neon P1001 on direct endpoints; migrate on the Oracle VM instead.
       - name: Build linux bundle (Docker)
         run: |

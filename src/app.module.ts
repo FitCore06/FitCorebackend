@@ -23,6 +23,7 @@ import { HealthController } from './health/health.controller.js';
 import { MonitoringModule } from './monitoring/monitoring.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { SecurityModule } from './common/security/security.module.js';
+import { SupportModule } from './support/support.module.js';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { SecurityModule } from './common/security/security.module.js';
     AuditModule,
     AutomationModule,
     MonitoringModule,
+    SupportModule,
   ],
   controllers: [HealthController],
 })

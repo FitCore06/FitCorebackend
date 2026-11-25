@@ -1,4 +1,13 @@
-import { IsInt, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import {
+  IsEmpty,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class SubmitDirectoryReviewDto {
   @IsString()
@@ -15,4 +24,9 @@ export class SubmitDirectoryReviewDto {
   @MinLength(8)
   @MaxLength(1200)
   comment!: string;
+
+  /** Honeypot — must stay empty (bots fill hidden fields). */
+  @IsOptional()
+  @IsEmpty()
+  website?: string;
 }

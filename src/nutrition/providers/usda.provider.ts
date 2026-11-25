@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  externalCallBlocked,
+  recordExternalCallFailure,
+  recordExternalCallSuccess,
+} from '../../common/external-call-cooldown.js';
 import type { FoodSearchHit, Per100gMacros } from '../nutrition.types.js';
 
 const USDA_ATTRIBUTION =
@@ -35,6 +40,10 @@ export class UsdaProvider {
   async searchFoods(query: string, pageSize = 10): Promise<FoodSearchHit[]> {
     const key = this.getApiKey();
     if (!key || !query.trim()) return [];
+    if (externalCallBlocked('USDA')) {
+      this.logger.warn('USDA search skipped (failure cooldown)');
+      return [];
+    }
 
     const base =
       this.config.get<string>('USDA_BASE_URL') ??
@@ -57,15 +66,19 @@ export class UsdaProvider {
       });
       if (!res.ok) {
         this.logger.warn(`USDA search HTTP ${res.status}`);
+        recordExternalCallFailure('USDA');
         return [];
       }
       const body = (await res.json()) as { foods?: FdcSearchFood[] };
       const foods = body.foods ?? [];
-      return foods
+      const hits = foods
         .map((food) => this.mapFood(food))
         .filter((row): row is FoodSearchHit => row !== null);
+      recordExternalCallSuccess('USDA');
+      return hits;
     } catch (err) {
       this.logger.warn(`USDA search failed: ${String(err)}`);
+      recordExternalCallFailure('USDA');
       return [];
     }
   }

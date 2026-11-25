@@ -30,7 +30,7 @@ import { resolveMembershipExpiryRunParams } from '../automation/automation-run-p
 import { expiryDedupeKey } from '../automation/membership-expiry-dedupe.js';
 import {
   formatSupplementBillMessage,
-  sendSupplementBillPhoneStub,
+  sendSupplementBillDelivery,
 } from './supplement-bill.messaging.js';
 import type { AssignMembershipDto, RenewMembershipDto } from './dto/assign-membership.dto.js';
 
@@ -1342,7 +1342,7 @@ export class GymOpsService {
     });
 
     if (sendWa) {
-      const wa = sendSupplementBillPhoneStub(member.phone, whatsappMessage);
+      const wa = await sendSupplementBillDelivery(member.phone, whatsappMessage);
       whatsappStatus = wa.status;
       whatsappPhone = wa.phone ?? member.phone;
       whatsappDetail = wa.detail;
@@ -1431,7 +1431,7 @@ export class GymOpsService {
         paymentMethod: row.paymentMethod,
         notes: row.notes,
       });
-    const wa = sendSupplementBillPhoneStub(row.member.phone, message);
+    const wa = await sendSupplementBillDelivery(row.member.phone, message);
     const updated = await this.prisma.gymSupplementSale.update({
       where: { id: row.id },
       data: {

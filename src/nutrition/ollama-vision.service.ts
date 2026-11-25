@@ -4,6 +4,11 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  externalCallBlocked,
+  recordExternalCallFailure,
+  recordExternalCallSuccess,
+} from '../common/external-call-cooldown.js';
 
 export type VisionFoodItem = {
   name: string;
@@ -50,6 +55,12 @@ export class OllamaVisionService {
         message: 'Food vision is temporarily unavailable',
       });
     }
+    if (externalCallBlocked('OLLAMA')) {
+      throw new ServiceUnavailableException({
+        code: 'VISION_UNAVAILABLE',
+        message: 'Vision service in cooldown after repeated failures',
+      });
+    }
 
     const base =
       this.config.get<string>('OLLAMA_BASE_URL') ?? 'http://127.0.0.1:11434';
@@ -90,6 +101,7 @@ export class OllamaVisionService {
         err instanceof Error &&
         (err.name === 'AbortError' || err.name === 'TimeoutError');
       this.logger.warn(`Ollama unreachable: ${String(err)}`);
+      recordExternalCallFailure('OLLAMA');
       throw new ServiceUnavailableException({
         code: isTimeout ? 'VISION_TIMEOUT' : 'VISION_UNAVAILABLE',
         message: isTimeout
@@ -101,6 +113,7 @@ export class OllamaVisionService {
     if (!res.ok) {
       const text = await res.text();
       this.logger.warn(`Ollama error ${res.status}: ${text.slice(0, 300)}`);
+      recordExternalCallFailure('OLLAMA');
       throw new ServiceUnavailableException({
         code: 'VISION_UNAVAILABLE',
         message: 'Vision inference failed',
@@ -124,6 +137,7 @@ export class OllamaVisionService {
       )
       .slice(0, 12);
 
+    recordExternalCallSuccess('OLLAMA');
     return {
       items,
       overallConfidence:
@@ -143,6 +157,9 @@ export class OllamaVisionService {
   async checkReadiness(): Promise<VisionReadiness> {
     if (!this.isEnabled()) {
       return { ready: false, reason: 'disabled' };
+    }
+    if (externalCallBlocked('OLLAMA')) {
+      return { ready: false, reason: 'unreachable' };
     }
     const ttlMs = Number(
       this.config.get<string>('OLLAMA_READINESS_TTL_MS') ?? 45_000,

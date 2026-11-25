@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  externalCallBlocked,
+  recordExternalCallFailure,
+  recordExternalCallSuccess,
+} from '../../common/external-call-cooldown.js';
 import type { FoodSearchHit, Per100gMacros } from '../nutrition.types.js';
 
 const OFF_ATTRIBUTION =
@@ -29,6 +34,10 @@ export class OpenFoodFactsProvider {
 
   async searchFoods(query: string, pageSize = 25): Promise<FoodSearchHit[]> {
     if (!this.isEnabled() || !query.trim()) return [];
+    if (externalCallBlocked('OPEN_FOOD_FACTS')) {
+      this.logger.warn('Open Food Facts search skipped (failure cooldown)');
+      return [];
+    }
 
     const base =
       this.config.get<string>('OPEN_FOOD_FACTS_SEARCH_URL') ??
@@ -52,6 +61,7 @@ export class OpenFoodFactsProvider {
       });
       if (!res.ok) {
         this.logger.warn(`Open Food Facts HTTP ${res.status}`);
+        recordExternalCallFailure('OPEN_FOOD_FACTS');
         return [];
       }
       const body = (await res.json()) as { hits?: OffSearchHit[] };
@@ -61,9 +71,11 @@ export class OpenFoodFactsProvider {
         const hit = this.mapProduct(product);
         if (hit) hits.push(hit);
       }
+      recordExternalCallSuccess('OPEN_FOOD_FACTS');
       return hits;
     } catch (err) {
       this.logger.warn(`Open Food Facts search failed: ${String(err)}`);
+      recordExternalCallFailure('OPEN_FOOD_FACTS');
       return [];
     }
   }

@@ -14,11 +14,44 @@ export function normalizeIndianPhone(raw: string): string | null {
   return null;
 }
 
-/** Demo — logs bill text; production can wire SMS or another provider later. */
-export function sendSupplementBillPhoneStub(
+async function sendWhatsAppCloudText(
+  toDigits: string,
+  body: string,
+): Promise<{ ok: boolean; detail: string }> {
+  const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim();
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
+  if (!token || !phoneNumberId) {
+    return { ok: false, detail: 'WhatsApp Cloud API not configured' };
+  }
+  const version = process.env.WHATSAPP_GRAPH_VERSION?.trim() || 'v21.0';
+  const res = await fetch(
+    `https://graph.facebook.com/${version}/${phoneNumberId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: toDigits,
+        type: 'text',
+        text: { body: body.slice(0, 4096) },
+      }),
+    },
+  );
+  if (!res.ok) {
+    const detail = (await res.text()).slice(0, 300);
+    return { ok: false, detail: `WhatsApp API ${res.status}: ${detail}` };
+  }
+  return { ok: true, detail: 'Sent via WhatsApp Cloud API' };
+}
+
+/** Stub logs; sends via Meta when WHATSAPP_ACCESS_TOKEN + WHATSAPP_PHONE_NUMBER_ID are set. */
+export async function sendSupplementBillDelivery(
   phone: string | null | undefined,
   message: string,
-): SupplementBillDeliveryResult {
+): Promise<SupplementBillDeliveryResult> {
   if (!phone?.trim()) {
     return {
       status: 'skipped',
@@ -34,10 +67,30 @@ export function sendSupplementBillPhoneStub(
       phone: phone,
     };
   }
+  const cloudConfigured = Boolean(
+    process.env.WHATSAPP_ACCESS_TOKEN?.trim() &&
+      process.env.WHATSAPP_PHONE_NUMBER_ID?.trim(),
+  );
+  const cloud = await sendWhatsAppCloudText(normalized, message);
+  if (cloud.ok) {
+    return {
+      status: 'sent',
+      detail: cloud.detail,
+      phone: `+${normalized}`,
+    };
+  }
+  if (cloudConfigured) {
+    return {
+      status: 'failed',
+      detail: cloud.detail,
+      phone: `+${normalized}`,
+    };
+  }
+
   console.log(`[supplement-bill-stub] to=+${normalized}\n---\n${message}\n---`);
   return {
     status: 'sent',
-    detail: `Bill queued to +${normalized} (delivery stub)`,
+    detail: `Bill logged locally (stub). ${cloud.detail}`,
     phone: `+${normalized}`,
   };
 }
