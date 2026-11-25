@@ -190,7 +190,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const valid = await bcrypt.compare(dto.password, user.passwordHash);
+    const valid = await this.passwordMatchesHash(
+      dto.password,
+      user.passwordHash,
+    );
     if (!valid) {
       throw new UnauthorizedException('Invalid email or password');
     }
@@ -475,6 +478,18 @@ export class AuthService {
       refreshToken,
       expiresIn: ACCESS_TTL_SECONDS,
     };
+  }
+
+  private async passwordMatchesHash(
+    password: string,
+    passwordHash: string | null | undefined,
+  ): Promise<boolean> {
+    if (!passwordHash?.trim()) return false;
+    try {
+      return await bcrypt.compare(password, passwordHash);
+    } catch {
+      return false;
+    }
   }
 
   private hashToken(token: string) {

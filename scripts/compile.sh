@@ -13,4 +13,4 @@ if [ ! -x node_modules/.bin/nest ]; then
 fi
 
 npx prisma generate
-npm exec nest build
+npx nest build

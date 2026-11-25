@@ -7,12 +7,22 @@ export const REFRESH_COOKIE = 'athra_rt';
 
 const REFRESH_TTL_SEC = 7 * 24 * 60 * 60;
 
+function resolveSameSite(
+  config: ConfigService,
+  prod: boolean,
+): 'lax' | 'none' | 'strict' {
+  const raw = config.get<string>('AUTH_COOKIE_SAME_SITE')?.trim().toLowerCase();
+  if (raw === 'lax' || raw === 'none' || raw === 'strict') return raw;
+  // Vercel same-origin proxy (www → /api/v1): lax. Cross-site web+Render: set AUTH_COOKIE_SAME_SITE=none.
+  return prod ? 'lax' : 'lax';
+}
+
 function cookieBase(config: ConfigService) {
   const prod = config.get<string>('NODE_ENV') === 'production';
   return {
     httpOnly: true,
     secure: prod,
-    sameSite: prod ? ('none' as const) : ('lax' as const),
+    sameSite: resolveSameSite(config, prod),
   };
 }
 
