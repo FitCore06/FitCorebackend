@@ -16,14 +16,21 @@ function normalizeRuntimeDatabasePool() {
   }
 
   const databaseUrl = new URL(process.env.DATABASE_URL);
-  if (
-    databaseUrl.hostname.endsWith('.pooler.supabase.com') &&
-    databaseUrl.port === '5432'
-  ) {
-    databaseUrl.port = '6543';
-    databaseUrl.searchParams.set('pgbouncer', 'true');
-    databaseUrl.searchParams.set('connection_limit', '10');
-    databaseUrl.searchParams.set('pool_timeout', '30');
+  if (databaseUrl.hostname.endsWith('.pooler.supabase.com')) {
+    // Transaction pooler (:6543) needs pgbouncer=true or Prisma INSERTs (e.g. login refresh token) 500.
+    if (databaseUrl.port === '5432') {
+      databaseUrl.port = '6543';
+    }
+    const port = databaseUrl.port || '5432';
+    if (port === '6543') {
+      databaseUrl.searchParams.set('pgbouncer', 'true');
+    }
+    if (!databaseUrl.searchParams.has('connection_limit')) {
+      databaseUrl.searchParams.set('connection_limit', '10');
+    }
+    if (!databaseUrl.searchParams.has('pool_timeout')) {
+      databaseUrl.searchParams.set('pool_timeout', '30');
+    }
     process.env.DATABASE_URL = databaseUrl.toString();
     return;
   }
