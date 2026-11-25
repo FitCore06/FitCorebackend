@@ -158,7 +158,7 @@ jobs:
           MIGRATE_DATABASE_URL: ${{ secrets.MIGRATE_DATABASE_URL }}
           ORACLE_SKIP_VM_MIGRATE: ${{ secrets.ORACLE_SKIP_VM_MIGRATE }}
           JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET }}
-          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS || 'https://athra-fit.vercel.app' }}
+          CORS_ORIGINS: ${{ format('https://www.athrafit.in,https://athrafit.in,{0}', secrets.CORS_ORIGINS || 'https://athra-fit.vercel.app') }}
           APP_PUBLIC_URL: ${{ secrets.APP_PUBLIC_URL }}
           FITCORE_AUTOMATION_SECRET: ${{ secrets.FITCORE_AUTOMATION_SECRET }}
           ATHRA_AUTOMATION_SECRET: ${{ secrets.ATHRA_AUTOMATION_SECRET }}
@@ -210,4 +210,6 @@ jobs:
       - name: Public health check
         run: |
           sleep 5
-          curl -fsS --max-time 30 "http://${ORACLE_HOST}:3001/api/v1/health"
+          for origin in https://www.athrafit.in https://athrafit.in; do
+            curl -fsS --max-time 30 -H "Origin: ${origin}" "http://${ORACLE_HOST}:3001/api/v1/health"
+          done
