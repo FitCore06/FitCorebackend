@@ -1965,7 +1965,7 @@ export class GymOpsService {
       ]);
 
     const appPublicUrl = (
-      this.config.get<string>('APP_PUBLIC_URL') ?? 'https://fit-core-mocha.vercel.app'
+      this.config.get<string>('APP_PUBLIC_URL') ?? 'https://www.athrafit.in'
     ).replace(/\/$/, '');
 
     return {
