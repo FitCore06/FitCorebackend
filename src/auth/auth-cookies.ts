@@ -13,8 +13,8 @@ function resolveSameSite(
 ): 'lax' | 'none' | 'strict' {
   const raw = config.get<string>('AUTH_COOKIE_SAME_SITE')?.trim().toLowerCase();
   if (raw === 'lax' || raw === 'none' || raw === 'strict') return raw;
-  // Vercel same-origin proxy (www → /api/v1): lax. Cross-site web+Render: set AUTH_COOKIE_SAME_SITE=none.
-  return prod ? 'lax' : 'lax';
+  // Cross-site web + API (e.g. Vercel → Render): none + secure. Same-origin proxy: AUTH_COOKIE_SAME_SITE=lax.
+  return prod ? 'none' : 'lax';
 }
 
 function cookieBase(config: ConfigService) {
