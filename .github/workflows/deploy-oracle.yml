@@ -160,6 +160,7 @@ jobs:
           JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET }}
           CORS_ORIGINS: ${{ format('https://www.athrafit.in,https://athrafit.in,{0}', secrets.CORS_ORIGINS || 'https://athra-fit.vercel.app') }}
           APP_PUBLIC_URL: ${{ secrets.APP_PUBLIC_URL }}
+          ALLOW_OWNER_REGISTRATION_WITHOUT_INVITE: ${{ vars.ALLOW_OWNER_REGISTRATION_WITHOUT_INVITE || 'true' }}
           FITCORE_AUTOMATION_SECRET: ${{ secrets.FITCORE_AUTOMATION_SECRET }}
           ATHRA_AUTOMATION_SECRET: ${{ secrets.ATHRA_AUTOMATION_SECRET }}
           RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
@@ -196,6 +197,7 @@ jobs:
           export JWT_ACCESS_SECRET=$(printf '%q' "$JWT_ACCESS_SECRET")
           export CORS_ORIGINS=$(printf '%q' "$CORS_ORIGINS")
           export APP_PUBLIC_URL=$(printf '%q' "$APP_PUBLIC_URL")
+          export ALLOW_OWNER_REGISTRATION_WITHOUT_INVITE=$(printf '%q' "$ALLOW_OWNER_REGISTRATION_WITHOUT_INVITE")
           export FITCORE_AUTOMATION_SECRET=$(printf '%q' "$FITCORE_AUTOMATION_SECRET")
           export ATHRA_AUTOMATION_SECRET=$(printf '%q' "$ATHRA_AUTOMATION_SECRET")
           export RAZORPAY_KEY_ID=$(printf '%q' "$RAZORPAY_KEY_ID")
